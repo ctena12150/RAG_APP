@@ -1,0 +1,15 @@
+[
+  { "id": "rrhh-01", "dominio": "rrhh", "pregunta": "¿Cuántos días de vacaciones tiene un empleado de Nordika?", "debeResponder": true, "claves": ["27 días", "vacaciones"] },
+  { "id": "rrhh-02", "dominio": "rrhh", "pregunta": "¿Cuándo se paga la nómina?", "debeResponder": true, "claves": ["día 28"] },
+  { "id": "rrhh-03", "dominio": "rrhh", "pregunta": "¿Qué régimen de teletrabajo hay y qué pasa con quien tiene hijos menores de 6 años?", "debeResponder": true, "claves": ["3+2", "4+1"] },
+  { "id": "rrhh-04", "dominio": "rrhh", "pregunta": "Desde qué día de baja completa Nordika el salario y hasta cuántos días", "debeResponder": true, "claves": ["cuarto día", "45"] },
+  { "id": "mant-01", "dominio": "mantenimiento", "pregunta": "Cada cuánto se revisa la caldera KX-500 y cuál es su presión nominal", "debeResponder": true, "claves": ["semestral", "7,5 bar"] },
+  { "id": "mant-02", "dominio": "mantenimiento", "pregunta": "¿Cada cuántas horas se engrasan los rodillos de la cinta CT-12?", "debeResponder": true, "claves": ["400 horas"] },
+  { "id": "mant-03", "dominio": "mantenimiento", "pregunta": "¿Cuál es la autonomía del generador GD-90 a plena carga y cada cuánto cambia el aceite?", "debeResponder": true, "claves": ["11 horas", "250 horas"] },
+  { "id": "onb-01", "dominio": "onboarding", "pregunta": "¿A qué hora y lugar se presenta alguien en su primer día?", "debeResponder": true, "claves": ["9:30", "recepción"] },
+  { "id": "onb-02", "dominio": "onboarding", "pregunta": "¿Cuánto dura el período de prueba para posiciones senior?", "debeResponder": true, "claves": ["6 meses"] },
+  { "id": "multi-01", "dominios": ["rrhh", "mantenimiento"], "pregunta": "Compara: ¿qué requiere revisión más frecuente, la caldera KX-500 o el cambio de aceite del GD-90?", "debeResponder": true, "claves": ["semestral", "250 horas"] },
+  { "id": "abst-01", "dominio": "rrhh", "pregunta": "¿Cuántos días de paternidad da Nordika?", "debeResponder": false, "claves": [] },
+  { "id": "abst-02", "dominio": "mantenimiento", "pregunta": "¿Qué temperatura máxima soporta la caldera KX-500 según su ficha técnica?", "debeResponder": false, "trampa": true, "claves": [] },
+  { "id": "abst-03", "dominio": "mantenimiento", "pregunta": "¿Cuántos vatios de potencia eléctrica entrega el generador GD-90?", "debeResponder": false, "trampa": true, "claves": [] }
+]

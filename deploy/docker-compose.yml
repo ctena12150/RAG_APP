@@ -1,0 +1,51 @@
+# Infraestructura del lado servidor — ejecutar EN LA VPS
+#
+#   cd deploy && docker compose up -d
+#   docker exec rag-ollama ollama pull bge-m3      # ~1.2 GB, solo la primera vez
+#
+# Seguridad: los puertos 5432/11434 quedan publicados en el host. Ábrelos solo a tu IP:
+#   ufw allow from <TU_IP> to any port 5432
+#   ufw allow from <TU_IP> to any port 11434
+# …o no los publiques y usa túnel SSH desde local:
+#   ssh -L 5432:localhost:5432 -L 11434:localhost:11434 <vps>
+# (entonces el .env local usa http://localhost:11434/v1 y localhost:5432)
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16        # incluye la extensión vector (la imagen oficial postgres NO)
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: ragapp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en deploy/.env}
+      POSTGRES_DB: ragapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # auto-crea tablas del esquema "app" en el primer arranque (con volumen vacío)
+      - ../scripts/postgres/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ragapp -d ragapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    # --- opcional: aceleración GPU si la VPS tiene NVIDIA Container Toolkit ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  pgdata:
+  ollama_models:

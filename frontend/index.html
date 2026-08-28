@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es" data-theme="dark" data-view="landing">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Evidentia·RAG — respuestas rastreables</title>
+    <script>
+      // tema sin flash antes del primer paint
+      document.documentElement.dataset.theme = localStorage.getItem("rag-theme") ?? "dark";
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..600&family=Public+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&family=Instrument+Serif&family=Hanken+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

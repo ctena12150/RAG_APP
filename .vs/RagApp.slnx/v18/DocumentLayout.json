@@ -1,0 +1,199 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\carlos\\Desktop\\RAG_APP\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\src\\rag.api\\endpoints\\documentsendpoints.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|solutionrelative:backend\\src\\rag.api\\endpoints\\documentsendpoints.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\src\\rag.api\\endpoints\\conversationsendpoints.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|solutionrelative:backend\\src\\rag.api\\endpoints\\conversationsendpoints.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\src\\rag.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|solutionrelative:backend\\src\\rag.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\src\\rag.api\\rag.api.http||{5703B403-55E7-4C63-8C88-A8F52C7A45C5}",
+      "RelativeMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|solutionrelative:backend\\src\\rag.api\\rag.api.http||{5703B403-55E7-4C63-8C88-A8F52C7A45C5}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\src\\rag.api\\properties\\launchsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|solutionrelative:backend\\src\\rag.api\\properties\\launchsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\src\\rag.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|solutionrelative:backend\\src\\rag.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3F7FD784-C8A3-EFE3-6225-8EB68F729AA5}|backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\tests\\rag.api.tests\\guardrailsentradatests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3F7FD784-C8A3-EFE3-6225-8EB68F729AA5}|backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj|solutionrelative:backend\\tests\\rag.api.tests\\guardrailsentradatests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3F7FD784-C8A3-EFE3-6225-8EB68F729AA5}|backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\tests\\rag.api.tests\\rag.api.tests.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{3F7FD784-C8A3-EFE3-6225-8EB68F729AA5}|backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj|solutionrelative:backend\\tests\\rag.api.tests\\rag.api.tests.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 7,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:254354193:0:{71f361cc-493f-47c0-923f-f2570b6f8618}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "ConversationsEndpoints.cs",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Endpoints\\ConversationsEndpoints.cs",
+              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Endpoints\\ConversationsEndpoints.cs",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Endpoints\\ConversationsEndpoints.cs",
+              "RelativeToolTip": "backend\\src\\RAG.Api\\Endpoints\\ConversationsEndpoints.cs",
+              "ViewState": "AgIAACoAAAAAAAAAAAAowAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-26T12:59:02.111Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Program.cs",
+              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Program.cs",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Program.cs",
+              "RelativeToolTip": "backend\\src\\RAG.Api\\Program.cs",
+              "ViewState": "AgIAAEIAAAAAAAAAAAAAAE8AAAACAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-26T12:35:59.636Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "RAG.Api.http",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\RAG.Api.http",
+              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\RAG.Api.http",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\RAG.Api.http",
+              "RelativeToolTip": "backend\\src\\RAG.Api\\RAG.Api.http",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003502|",
+              "WhenOpened": "2026-08-26T12:35:20.568Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "DocumentsEndpoints.cs",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Endpoints\\DocumentsEndpoints.cs",
+              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Endpoints\\DocumentsEndpoints.cs",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Endpoints\\DocumentsEndpoints.cs",
+              "RelativeToolTip": "backend\\src\\RAG.Api\\Endpoints\\DocumentsEndpoints.cs",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAAA8AAABUAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-26T10:58:28.524Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "launchSettings.json",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Properties\\launchSettings.json",
+              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Properties\\launchSettings.json",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Properties\\launchSettings.json",
+              "RelativeToolTip": "backend\\src\\RAG.Api\\Properties\\launchSettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-08-26T10:53:34.314Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\appsettings.json",
+              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\appsettings.json",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\appsettings.json",
+              "RelativeToolTip": "backend\\src\\RAG.Api\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-08-26T10:51:17.58Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "GuardrailsEntradaTests.cs",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\tests\\RAG.Api.Tests\\GuardrailsEntradaTests.cs",
+              "RelativeDocumentMoniker": "backend\\tests\\RAG.Api.Tests\\GuardrailsEntradaTests.cs",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\tests\\RAG.Api.Tests\\GuardrailsEntradaTests.cs",
+              "RelativeToolTip": "backend\\tests\\RAG.Api.Tests\\GuardrailsEntradaTests.cs",
+              "ViewState": "AgIAAEoAAAAAAAAAAAAIwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-24T16:03:44.821Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "RAG.Api.Tests.csproj",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj",
+              "RelativeDocumentMoniker": "backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj",
+              "RelativeToolTip": "backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-08-24T16:03:37.462Z"
+            }
+          ]
+        },
+        {
+          "DockedWidth": 215,
+          "SelectedChildIndex": -1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{d78612c7-9962-4b83-95d9-268046dad23a}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{be4d7042-ba3f-11d2-840e-00c04f9902c1}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{605322a2-17ae-43f4-b60f-766556e46c87}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{28836128-fc2c-11d2-a433-00c04f72d18a}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:1:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{ecb7191a-597b-41f5-9843-03a4cf275dde}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,256 @@
+@import "tailwindcss";
+
+/* ============ SISTEMAS DE DISEÑO ============
+   Ledger (landing): estética de cuaderno de evidencias — papel salvia frío,
+   doble acento verdigris + siena oxidado, serif Newsreader.
+   Signal (app): panel de instrumentos de precisión — azul-negro profundo,
+   acento cian fósforo + ámbar cálido, motivo de forma de onda. */
+
+:root {
+  --font-display: "Newsreader", Georgia, serif;
+  --font-body: "Public Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+[data-view="landing"] {
+  --bg: #eef0e9;
+  --bg-elev: #f7f8f3;
+  --ink: #23281f;
+  --ink-soft: #5a6154;
+  --line: #d5dacb;
+  --accent-a: #2e7d6e; /* verdigris */
+  --accent-b: #a34a2a; /* rust sienna */
+}
+
+[data-view="landing"][data-theme="dark"] {
+  --bg: #171b16;
+  --bg-elev: #1f241d;
+  --ink: #e6e8df;
+  --ink-soft: #9aa392;
+  --line: #333a30;
+  --accent-a: #58b8a5;
+  --accent-b: #c96a45;
+}
+
+[data-view="app"] {
+  --bg: #070b14;
+  --bg-elev: #0c1322;
+  --ink: #dbe7f4;
+  --ink-soft: #71829b;
+  --line: #17233a;
+  --accent-a: #38e1ff; /* phosphor cyan */
+  --accent-b: #ffb454; /* warm amber */
+}
+
+[data-view="app"][data-theme="light"] {
+  --bg: #f2f5fa;
+  --bg-elev: #ffffff;
+  --ink: #101a2b;
+  --ink-soft: #55647d;
+  --line: #d7dfeb;
+  --accent-a: #0784a3;
+  --accent-b: #b06a12;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.theme-panel {
+  background: var(--bg-elev);
+  border-color: var(--line);
+}
+
+.theme-ink-soft {
+  color: var(--ink-soft);
+}
+
+.accent-a {
+  color: var(--accent-a);
+}
+.accent-b {
+  color: var(--accent-b);
+}
+
+.btn-accent-a {
+  background: color-mix(in oklab, var(--accent-a) 85%, black);
+  color: #04121a;
+}
+.btn-accent-a:hover {
+  filter: brightness(1.1);
+}
+
+/* forma de onda (Signal) */
+@keyframes wave-pulse {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.wave-bar {
+  animation: wave-pulse 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* barra indeterminada mientras el backend chunka y embeddea */
+@keyframes recorrido-indeterminado {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(410%);
+  }
+}
+.barra-indeterminada-recorrido {
+  animation: recorrido-indeterminado 1.4s ease-in-out infinite;
+}
+
+.modelo-select {
+  background: var(--bg-elev);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  color-scheme: dark;
+}
+.modelo-select option {
+  background: #101a2a;
+  color: #f4f7fb;
+}
+.tooltip-estadisticas {
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.grupo-estadisticas:hover + .tooltip-estadisticas,
+.grupo-estadisticas:focus-visible + .tooltip-estadisticas {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* destello de la fila cuando un documento termina de procesarse */
+.fila-flash {
+  animation: destello-fila 1.8s ease-out;
+}
+@keyframes destello-fila {
+  0% {
+    opacity: 0.35;
+  }
+  30% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave-bar {
+    animation: none !important;
+    transform: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* badges de cita estilo sello de archivo */
+.citation-stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  margin: 0 0.12rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1.5px solid var(--accent-a);
+  border-radius: 4px;
+  color: var(--accent-a);
+  transform: rotate(-2deg) scale(0.95);
+  cursor: pointer;
+  vertical-align: baseline;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-a) 30%, transparent);
+}
+.citation-stamp:hover,
+.citation-stamp[data-active="true"] {
+  transform: rotate(0deg) scale(1.08);
+  background: color-mix(in oklab, var(--accent-a) 14%, transparent);
+}
+.citation-stamp[data-used="false"] {
+  border-style: dashed;
+  opacity: 0.65;
+}
+
+@keyframes stamp-in {
+  from {
+    transform: rotate(-8deg) scale(1.6);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-2deg) scale(0.95);
+    opacity: 1;
+  }
+}
+.stamp-enter > .citation-stamp {
+  animation: stamp-in 0.28s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.prose-rag pre {
+  overflow-x: auto;
+  background: color-mix(in oklab, var(--bg) 70%, black 8%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.82rem;
+}
+.prose-rag code {
+  font-family: var(--font-mono);
+}
+.prose-rag table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.86rem;
+}
+.prose-rag th,
+.prose-rag td {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+}
+.prose-rag th {
+  background: color-mix(in oklab, var(--accent-a) 10%, transparent);
+}
+.prose-rag h1,
+.prose-rag h2,
+.prose-rag h3 {
+  font-family: var(--font-display);
+  margin: 0.6em 0 0.3em;
+}
+.prose-rag p {
+  margin: 0.45em 0;
+}
+.prose-rag ul,
+.prose-rag ol {
+  margin: 0.45em 0;
+  padding-left: 1.3rem;
+}

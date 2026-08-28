@@ -1,0 +1,43 @@
+INFO:     Started server process [65160]
+INFO:     Waiting for application startup.
+2026-08-26 15:30:14,699 INFO app.main: Warm-up BD OK (1 documentos listos)
+2026-08-26 15:30:15,945 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:30:15,978 INFO app.main: Warm-up embeddings OK
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-08-26 15:30:27,568 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:30:28,459 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:30:29,089 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:30:30,065 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:30:32,405 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:30:33,577 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:30:33,993 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:30:34,977 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:30:35,862 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:30:35,873 INFO app.api.routes: /chat completado en 10.3s
+2026-08-26 15:31:03,109 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:31:03,691 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:04,518 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:31:05,378 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:31:06,545 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:31:07,891 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-08-26 15:31:07,902 WARNING app.core.llms: Fallo groq:openai/gpt-oss-20b (HTTPStatusError); probando siguiente eslabón
+2026-08-26 15:31:08,856 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:09,328 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:11,327 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-26 15:31:11,346 WARNING app.core.llms: Fallo groq:openai/gpt-oss-20b (HTTPStatusError); probando siguiente eslabón
+2026-08-26 15:31:11,889 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:11,896 INFO app.api.routes: /chat completado en 10.1s
+2026-08-26 15:31:29,453 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:31:31,257 INFO httpx2: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:32,002 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:32,834 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:31:34,161 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:31:36,115 INFO httpx: HTTP Request: POST http://186.240.150.93:11434/v1/embeddings "HTTP/1.1 200 OK"
+2026-08-26 15:31:36,973 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-26 15:31:36,974 WARNING app.core.llms: Fallo groq:openai/gpt-oss-20b (HTTPStatusError); probando siguiente eslabón
+2026-08-26 15:31:38,240 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:38,838 INFO httpx2: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:39,628 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:44,302 INFO httpx: HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-26 15:31:44,308 INFO app.api.routes: /chat completado en 15.7s
