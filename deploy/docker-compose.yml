@@ -1,28 +1,36 @@
-# Infraestructura del lado servidor — ejecutar EN LA VPS
+# Evidentia·RAG — stack completo para VPS — ejecutar EN LA VPS
 #
-#   cd deploy && docker compose up -d
+#   cd deploy && cp .env.example .env    (define POSTGRES_PASSWORD, INTERNAL_API_KEY, GROQ_API_KEY…)
+#   docker compose up -d --build
 #   docker exec rag-ollama ollama pull bge-m3      # ~1.2 GB, solo la primera vez
 #
-# Seguridad: los puertos 5432/11434 quedan publicados en el host. Ábrelos solo a tu IP:
-#   ufw allow from <TU_IP> to any port 5432
-#   ufw allow from <TU_IP> to any port 11434
-# …o no los publiques y usa túnel SSH desde local:
-#   ssh -L 5432:localhost:5432 -L 11434:localhost:11434 <vps>
-# (entonces el .env local usa http://localhost:11434/v1 y localhost:5432)
+# Verificación:
+#   curl http://localhost/api/health     # frontend + estado del servicio RAG
+#
+# Topología: solo 'web' publica puerto (WEB_PORT, def. 80). Postgres, Ollama, el
+# servicio RAG y el API .NET viven en la red interna de compose. Los puertos
+# 5432/11434 quedan publicados SOLO en 127.0.0.1 para el túnel SSH del desarrollo
+# local (ssh -L 5432:localhost:5432 -L 11434:localhost:11434 <vps>); si prefieres
+# abrirlos a tu IP, cambia el bind en 'ports'.
+#
+# NO añadas 'name:' a este compose: el proyecto debe seguir llamándose 'deploy'
+# para reutilizar los volúmenes deploy_pgdata / deploy_ollama_models ya existentes.
 
 services:
   postgres:
     image: pgvector/pgvector:pg16        # incluye la extensión vector (la imagen oficial postgres NO)
     container_name: rag-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ragapp
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en deploy/.env}
       POSTGRES_DB: ragapp
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # auto-crea tablas del esquema "app" en el primer arranque (con volumen vacío)
+      # auto-crea las tablas del esquema "app" en el primer arranque (volumen vacío);
+      # el esquema "rag" (chunks + embeddings pgvector) lo crea el propio rag-service
       - ../scripts/postgres/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ragapp -d ragapp"]
@@ -33,8 +41,9 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: rag-ollama
+    restart: unless-stopped
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_models:/root/.ollama
     # --- opcional: aceleración GPU si la VPS tiene NVIDIA Container Toolkit ---
@@ -46,6 +55,96 @@ services:
     #           count: all
     #           capabilities: [gpu]
 
+  rag:
+    build:
+      context: ../rag-service
+    image: ragapp/rag-service:local
+    container_name: rag-rag-service
+    restart: unless-stopped
+    environment:
+      # --- almacenamiento (postgres en la red interna de compose) ---
+      RAG_STORE: postgres
+      DATABASE_DSN: postgresql://ragapp:${POSTGRES_PASSWORD}@postgres:5432/ragapp
+      # --- embeddings (dimensión inmutable por despliegue; cambiar ⇒ reindexar) ---
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
+      EMBEDDINGS_CHAIN: ${EMBEDDINGS_CHAIN:-ollama:bge-m3}
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      # --- generación (el fallback ollama qwen3:8b exige ~6-8 GB de RAM) ---
+      GENERATION_CHAIN: ${GENERATION_CHAIN:-groq:openai/gpt-oss-120b,ollama:qwen3:8b}
+      UTILITY_CHAIN: ${UTILITY_CHAIN:-groq:openai/gpt-oss-20b,ollama:qwen3:8b}
+      PLANNER_CHAIN: ${PLANNER_CHAIN:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      # --- seguridad: debe coincidir con RagService__InternalKey del backend ---
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Define INTERNAL_API_KEY en deploy/.env}
+      ENABLE_WARMUP: ${ENABLE_WARMUP:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      # /health nunca lanza; urlopen falla (≠0) solo si el proceso no responde
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  backend:
+    build:
+      context: ../backend
+    image: ragapp/backend:local
+    container_name: rag-backend
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5000
+      # --- almacenamiento (env > appsettings.json) ---
+      Storage__Provider: PostgreSql
+      Storage__ConnectionString: Host=postgres;Port=5432;Database=ragapp;Username=ragapp;Password=${POSTGRES_PASSWORD}
+      # --- servicio RAG (red interna de compose) ---
+      RagService__BaseUrl: http://rag:8000
+      RagService__InternalKey: ${INTERNAL_API_KEY}
+      Security__InternalApiKey: ${INTERNAL_API_KEY}
+      Security__AppAccessKey: ${APP_ACCESS_KEY:-}
+      Security__AllowedOrigin: ${ALLOWED_ORIGIN:-*}
+      # detrás de nginx: limitar por la IP real del cliente (X-Forwarded-For)
+      RateLimit__TrustProxyHeaders: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rag:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  web:
+    build:
+      context: ../frontend
+    image: ragapp/frontend:local
+    container_name: rag-web
+    restart: unless-stopped
+    environment:
+      # el nginx del frontend la inyecta como X-App-Access-Key si va definida
+      APP_ACCESS_KEY: ${APP_ACCESS_KEY:-}
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pgdata:
   ollama_models:
+

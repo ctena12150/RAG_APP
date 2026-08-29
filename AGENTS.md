@@ -138,3 +138,4 @@ Primer venv: `py -3.12 -m venv rag-service/.venv && ... pip install -r requireme
 - Los tests .NET comparten `ApiTestFactory` por clase: no asserts de "una sola llamada" globales sobre `FakeRagService` entre tests; filtrar por documento.
 - En pytest, `contenedor_prueba()` desactiva verificación/expansión/rerank por defecto; activar explícitamente lo que el test ejercite.
 - La confianza RRF normalizada rara vez baja de 0.5 con un solo hit: para probar el guardrail de umbral, subir `guardrail_umbral_relevancia` en el test.
+- ErrorBoundary de Three.js (`SceneErrorBoundary`): su `render()` debe devolver `fallback`/`null` cuando `hasError=true`, nunca `children` (si no, el hijo roto se renderiza de nuevo causando crash en bucle). `main.tsx` debe setear `data-view` además de `data-theme` antes del primer render para evitar flash de CSS variables.

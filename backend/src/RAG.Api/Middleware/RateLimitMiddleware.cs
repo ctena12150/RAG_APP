@@ -29,7 +29,7 @@ public sealed class RateLimitMiddleware(RequestDelegate next, ILogger<RateLimitM
             return;
         }
 
-        var clave = $"{context.Connection.RemoteIpAddress ?? System.Net.IPAddress.Loopback}";
+        var clave = ConstruirClave(context, opciones.TrustProxyHeaders);
         var ahora = DateTime.UtcNow;
         var esCara = EsRutaCara(context);
 
@@ -61,6 +61,21 @@ public sealed class RateLimitMiddleware(RequestDelegate next, ILogger<RateLimitM
         }
 
         await next(context);
+    }
+
+    /// <summary>
+    /// Clave de limitación: IP remota por defecto; primer salto de X-Forwarded-For
+    /// cuando se confía en el proxy inverso (despliegue en contenedores).
+    /// </summary>
+    private static string ConstruirClave(HttpContext context, bool confiaEnProxy)
+    {
+        if (confiaEnProxy)
+        {
+            var reenviadas = context.Request.Headers["X-Forwarded-For"].ToString();
+            var primera = reenviadas.Split(',')[0].Trim();
+            if (primera.Length > 0) return primera;
+        }
+        return $"{context.Connection.RemoteIpAddress ?? System.Net.IPAddress.Loopback}";
     }
 
     internal static bool EsRutaExenta(HttpContext context) =>

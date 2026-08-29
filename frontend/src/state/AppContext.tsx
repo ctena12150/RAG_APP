@@ -109,6 +109,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("rag-theme", tema);
   }, [tema]);
 
+  useEffect(() => {
+    document.documentElement.dataset.view = vista;
+    localStorage.setItem("rag-view", vista);
+  }, [vista]);
+
   const alternarTema = useCallback(() => {
     setTema((t) => (t === "dark" ? "light" : "dark"));
   }, []);

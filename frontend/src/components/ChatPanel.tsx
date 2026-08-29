@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../state/AppContext";
 import MessageBubble from "./MessageBubble";
 import { api } from "../lib/api";
+import { useDictado, soportaDictado } from "../lib/voz";
 import type { ModeloDisponible, NivelRazonamiento } from "../lib/types";
 
 /** Panel central de chat: mensajes, composer y estado vacío con forma de onda. */
@@ -18,6 +19,9 @@ export default function ChatPanel() {
     () => localStorage.getItem("rag-perfil") === "fast",
   );
   const finRef = useRef<HTMLDivElement>(null);
+  const { grabando, error: errorDictado, iniciar, detener } = useDictado({
+    onTranscribir: (t) => { setTexto((prev) => prev + " " + t); },
+  });
 
   useEffect(() => {
     finRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -192,6 +196,25 @@ export default function ChatPanel() {
             style={{ background: "var(--bg-elev)", border: "1px solid var(--line)" }}
           >
             {chat.enviando && <OndaActiva />}
+            {soportaDictado() && (
+              <button
+                type="button"
+                aria-label={grabando ? "Detener dictado" : "Dictar por voz"}
+                title={grabando ? "Detener dictado" : "Dictar por voz"}
+                onClick={grabando ? detener : iniciar}
+                className={`btn-micro ${grabando ? "grabado" : ""}`}
+              >
+                {grabando ? (
+                  <span className="flex items-center gap-0.5" aria-hidden>
+                    <span className="wave-bar inline-block h-2.5 w-0.5 rounded-full" style={{ background: "var(--accent-b)", animationDelay: "0s" }} />
+                    <span className="wave-bar inline-block h-2.5 w-0.5 rounded-full" style={{ background: "var(--accent-b)", animationDelay: "0.12s" }} />
+                    <span className="wave-bar inline-block h-2.5 w-0.5 rounded-full" style={{ background: "var(--accent-b)", animationDelay: "0.24s" }} />
+                  </span>
+                ) : (
+                  "🎙"
+                )}
+              </button>
+            )}
             <textarea
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
@@ -220,6 +243,11 @@ export default function ChatPanel() {
             {chat.enviando ? "■" : "➤"}
           </button>
         </form>
+        {errorDictado && (
+          <div className="mx-auto mt-1 max-w-3xl text-[11px]" style={{ color: "var(--accent-b)" }} role="alert">
+            {errorDictado}
+          </div>
+        )}
         <p className="mx-auto mt-2 max-w-3xl text-[11px]" style={{ color: "var(--ink-soft)" }}>
           Las respuestas se generan exclusivamente a partir de los documentos indexados, con citas verificables.
         </p>

@@ -3,6 +3,10 @@
   "WorkspaceRootPath": "C:\\Users\\carlos\\Desktop\\RAG_APP\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\src\\rag.api\\middleware\\ratelimitmiddleware.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|solutionrelative:backend\\src\\rag.api\\middleware\\ratelimitmiddleware.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|c:\\users\\carlos\\desktop\\rag_app\\backend\\src\\rag.api\\endpoints\\documentsendpoints.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{01E89EA1-88EA-FCB5-C575-1C68BBBB897C}|backend\\src\\RAG.Api\\RAG.Api.csproj|solutionrelative:backend\\src\\rag.api\\endpoints\\documentsendpoints.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -42,7 +46,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 7,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Bookmark",
@@ -62,7 +66,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
+              "Title": "RateLimitMiddleware.cs",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Middleware\\RateLimitMiddleware.cs",
+              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Middleware\\RateLimitMiddleware.cs",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Middleware\\RateLimitMiddleware.cs",
+              "RelativeToolTip": "backend\\src\\RAG.Api\\Middleware\\RateLimitMiddleware.cs",
+              "ViewState": "AgIAAC0AAAAAAAAAAAAowAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-29T13:42:11.983Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "ConversationsEndpoints.cs",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Endpoints\\ConversationsEndpoints.cs",
               "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Endpoints\\ConversationsEndpoints.cs",
@@ -74,7 +91,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "Program.cs",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Program.cs",
               "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Program.cs",
@@ -86,7 +103,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 4,
               "Title": "RAG.Api.http",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\RAG.Api.http",
               "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\RAG.Api.http",
@@ -98,7 +115,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "DocumentsEndpoints.cs",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Endpoints\\DocumentsEndpoints.cs",
               "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Endpoints\\DocumentsEndpoints.cs",
@@ -111,7 +128,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 5,
               "Title": "launchSettings.json",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Properties\\launchSettings.json",
               "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Properties\\launchSettings.json",
@@ -123,7 +140,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 6,
               "Title": "appsettings.json",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\appsettings.json",
               "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\appsettings.json",
@@ -135,7 +152,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 7,
               "Title": "GuardrailsEntradaTests.cs",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\tests\\RAG.Api.Tests\\GuardrailsEntradaTests.cs",
               "RelativeDocumentMoniker": "backend\\tests\\RAG.Api.Tests\\GuardrailsEntradaTests.cs",
@@ -147,7 +164,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 8,
               "Title": "RAG.Api.Tests.csproj",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj",
               "RelativeDocumentMoniker": "backend\\tests\\RAG.Api.Tests\\RAG.Api.Tests.csproj",

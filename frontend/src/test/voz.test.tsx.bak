@@ -1,0 +1,277 @@
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import Sidebar from "../components/Sidebar";
+import ChatPanel from "../components/ChatPanel";
+import MessageBubble from "../components/MessageBubble";
+import { useApp } from "../state/AppContext";
+import { componerTextoConversacion, limpiarTextoParaVoz } from "../lib/voz";
+import type { MensajeChat } from "../lib/types";
+
+vi.mock("../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/api")>()), // dividirPorCitas real (la usa MessageBubble)
+  api: {
+    mensajesDe: vi.fn(async () => []),
+    listarModelos: vi.fn(async () => []),
+  },
+}));
+
+vi.mock("../state/AppContext", () => ({
+  useApp: vi.fn(),
+}));
+
+const useAppMock = vi.mocked(useApp);
+const borrarConversacion = vi.fn(async () => {});
+let conversacionesActuales: Array<{ id: string; titulo: string }> = [];
+
+/** Instala stubs de la Web Speech API de síntesis (jsdom no la tiene). */
+function instalarSintesis() {
+  const speak = vi.fn();
+  const cancel = vi.fn();
+  Object.defineProperty(window, "speechSynthesis", {
+    configurable: true,
+    value: { speak, cancel, getVoices: vi.fn(() => [{ lang: "es-ES", name: "Mónica" }]) },
+  });
+  Object.defineProperty(window, "SpeechSynthesisUtterance", {
+    configurable: true,
+    value: class {
+      text: string;
+      lang = "";
+      constructor(texto: string) {
+        this.text = texto;
+      }
+    },
+  });
+  return { speak, cancel };
+}
+
+function configurarSidebar() {
+  // mockImplementation (no mockReturnValue) para que cada render lea la lista actual
+  useAppMock.mockImplementation(
+    () =>
+      ({
+        dominioActivo: "rrhh",
+        setDominioActivo: vi.fn(),
+        documentos: [],
+        folders: [],
+        crearFolder: vi.fn(),
+        borrarFolder: vi.fn(),
+        subirDocumento: vi.fn(),
+        subidaActiva: null,
+        errorSubida: null,
+        conversaciones: conversacionesActuales,
+        conversacionActiva: null,
+        abrirConversacion: vi.fn(async () => {}),
+        nuevaConversacion: vi.fn(async () => {}),
+        borrarConversacion,
+      }) as unknown as ReturnType<typeof useApp>,
+  );
+  conversacionesActuales = [{ id: "c1", titulo: "Vacaciones 2026" }];
+}
+
+describe("limpiarTextoParaVoz / componerTextoConversacion", () => {
+  it("limpia citas, markdown y código para que la voz suene natural", () => {
+    const limpio = limpiarTextoParaVoz("Tiene **23 días** (Fuente 1).\n\n```bash\nnpm i\n```\nVer `README.md`.");
+    expect(limpio).not.toContain("Fuente 1");
+    expect(limpio).not.toContain("**");
+    expect(limpio).not.toContain("```");
+    expect(limpio).toContain("Tiene 23 días.");
+    expect(limpio).toContain("Ver README.md.");
+  });
+
+  it("compone el guion pregunta/respuesta omitiendo turnos vacíos", () => {
+    const mensajes = [
+      { id: "1", rol: "user", contenido: "Hola", pendiente: false },
+      { id: "2", rol: "assistant", contenido: "", pendiente: true },
+      { id: "3", rol: "assistant", contenido: "Son 23 días", pendiente: false },
+    ] as MensajeChat[];
+    expect(componerTextoConversacion(mensajes)).toBe("Pregunta: Hola Respuesta: Son 23 días");
+  });
+});
+
+describe("Sidebar · acciones por conversación", () => {
+  beforeEach(() => {
+    configurarSidebar();
+    vi.mocked(api.mensajesDe).mockReset();
+    vi.mocked(api.mensajesDe).mockResolvedValue([]);
+    borrarConversacion.mockClear();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    delete (window as unknown as { speechSynthesis?: unknown }).speechSynthesis;
+    delete (window as unknown as { SpeechSynthesisUtterance?: unknown }).SpeechSynthesisUtterance;
+    delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+    delete (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
+  });
+
+  it("elimina la conversación al confirmar", () => {
+    render(<Sidebar />);
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar Vacaciones 2026" }));
+    expect(borrarConversacion).toHaveBeenCalledWith("c1");
+  });
+
+  it("pide confirmación antes de eliminar y no elimina si se cancela", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<Sidebar />);
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar Vacaciones 2026" }));
+    expect(borrarConversacion).not.toHaveBeenCalled();
+  });
+
+  it("deshabilita el botón de escuchar si el navegador no tiene síntesis de voz", () => {
+    render(<Sidebar />);
+    expect(screen.getByRole("button", { name: "Escuchar Vacaciones 2026" })).toBeDisabled();
+  });
+
+  it("lee la conversación en voz alta sin citas ni markdown y permite detenerla", async () => {
+    const { speak, cancel } = instalarSintesis();
+    vi.mocked(api.mensajesDe).mockResolvedValue([
+      { id: "m1", rol: "user", contenido: "¿Cuántos días?", pendiente: false },
+      { id: "m2", rol: "assistant", contenido: "Tiene **23** días (Fuente 1).", fuentes: [], pendiente: false },
+    ] as MensajeChat[]);
+    render(<Sidebar />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Escuchar Vacaciones 2026" }));
+    });
+
+    expect(speak).toHaveBeenCalled();
+    const leido = speak.mock.calls.map((llamada) => (llamada[0] as { text: string }).text).join(" ");
+    expect(leido).toContain("Pregunta: ¿Cuántos días?");
+    expect(leido).toContain("Respuesta: Tiene 23 días.");
+    expect(leido).not.toContain("Fuente 1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Detener lectura de Vacaciones 2026" }));
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("avisa cuando la conversación no tiene texto que leer", async () => {
+    instalarSintesis();
+    render(<Sidebar />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Escuchar Vacaciones 2026" }));
+    });
+    expect(screen.getByText("No se pudo leer")).toBeInTheDocument();
+  });
+
+  it("detiene la lectura si la conversación leída se elimina", async () => {
+    const { speak, cancel } = instalarSintesis();
+    vi.mocked(api.mensajesDe).mockResolvedValue([
+      { id: "m1", rol: "user", contenido: "Hola", pendiente: false },
+    ] as MensajeChat[]);
+    const vista = render(<Sidebar />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Escuchar Vacaciones 2026" }));
+    });
+    expect(speak).toHaveBeenCalled();
+
+    // la conversación desaparece (p. ej. eliminada) y el contexto re-renderiza la lista
+    conversacionesActuales = [];
+    vista.rerender(<Sidebar />);
+    await act(async () => {});
+    expect(cancel).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Detener lectura de Vacaciones 2026" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatPanel · dictado por voz", () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+    useAppMock.mockReturnValue({
+      chat: { enviando: false, mensajes: [], error: null, actividad: [] },
+      preguntar: vi.fn(async () => {}),
+      detenerGeneracion: vi.fn(),
+      conversacionActiva: null,
+      documentos: [],
+    } as unknown as ReturnType<typeof useApp>);
+  });
+
+  afterEach(() => {
+    cleanup();
+    delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+    delete (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
+  });
+
+  it("oculta el micrófono cuando el navegador no soporta dictado", async () => {
+    render(<ChatPanel />);
+    await act(async () => {});
+    expect(screen.queryByRole("button", { name: "Dictar por voz" })).not.toBeInTheDocument();
+  });
+
+  it("añade el transcript al composer sin borrar lo escrito y permite detener", async () => {
+    const creados: Array<{
+      lang: string;
+      start: () => void;
+      stop: () => void;
+      abort: () => void;
+      onresult: ((evento: unknown) => void) | null;
+    }> = [];
+    class ReconocimientoFalso {
+      lang = "";
+      continuous = false;
+      interimResults = false;
+      onresult: ((evento: unknown) => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: ((evento: unknown) => void) | null = null;
+      start() {
+        creados.push(this);
+      }
+      stop() {}
+      abort() {}
+    }
+    (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition = ReconocimientoFalso;
+
+    render(<ChatPanel />);
+    await act(async () => {});
+    const composer = screen.getByTestId("composer") as HTMLTextAreaElement;
+    fireEvent.change(composer, { target: { value: "Sobre el manual:" } });
+    fireEvent.click(screen.getByRole("button", { name: "Dictar por voz" }));
+    expect(creados).toHaveLength(1);
+    expect(creados[0].lang).toBe("es-ES");
+
+    await act(async () => {
+      creados[0].onresult?.({
+        resultIndex: 0,
+        results: [{ isFinal: true, 0: { transcript: " cuántos días de vacaciones " } }],
+      });
+    });
+    expect(composer.value).toBe("Sobre el manual: cuántos días de vacaciones");
+
+    const espiaStop = vi.spyOn(creados[0], "stop");
+    fireEvent.click(screen.getByRole("button", { name: "Detener dictado" }));
+    expect(espiaStop).toHaveBeenCalledOnce();
+  });
+
+  it("descarta los resultados parciales para no duplicar texto", async () => {
+    const creados: Array<{ start: () => void; onresult: ((evento: unknown) => void) | null }> = [];
+    class ReconocimientoFalso {
+      lang = "";
+      continuous = false;
+      interimResults = false;
+      onresult: ((evento: unknown) => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: ((evento: unknown) => void) | null = null;
+      start() {
+        creados.push(this);
+      }
+      stop() {}
+      abort() {}
+    }
+    (window as unknown as { webkitSpeechRecognition: unknown }).webkitSpeechRecognition = ReconocimientoFalso;
+
+    render(<ChatPanel />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "Dictar por voz" }));
+
+    await act(async () => {
+      creados[0].onresult?.({
+        resultIndex: 0,
+        results: [{ isFinal: false, 0: { transcript: "parcial que no cuenta" } }],
+      });
+    });
+    const composer = screen.getByTestId("composer") as HTMLTextAreaElement;
+    expect(composer.value).toBe("");
+  });
+});
+

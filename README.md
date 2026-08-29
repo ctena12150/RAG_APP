@@ -27,40 +27,45 @@ scripts/postgres/schema.sql
 
 - .NET SDK 10, Python 3.12 (`py -3.12`), Node ≥ 20
 - Clave de [Groq](https://console.groq.com/keys) (gratuita)
-- Infraestructura en la VPS vía Docker (ver sección siguiente): Postgres **pgvector** + Ollama
+- Infraestructura vía Docker en la VPS (ver sección siguiente): stack completo (Postgres **pgvector** + Ollama + los 3 servicios) o solo los datos si desarrollas en local
 
-## Infraestructura en la VPS (Docker)
+## Despliegue full-stack en la VPS (Docker)
 
-Los contenedores de datos viven en la VPS; la app corre en local y se conecta a ellos.
+Todo el sistema corre en la VPS con un único compose: Postgres+pgvector, Ollama,
+rag-service (Python), API .NET y frontend (nginx que sirve el build de Vite y proxea
+`/api` al backend — same-origin, sin CORS).
 
 ```bash
 # en la VPS
-cp deploy/.env.example deploy/.env        # define POSTGRES_PASSWORD
-cd deploy && docker compose up -d         # postgres(pgvector) + ollama
+git clone https://github.com/ctena12150/RAG_APP.git && cd RAG_APP
+cp deploy/.env.example deploy/.env        # define POSTGRES_PASSWORD, INTERNAL_API_KEY y GROQ_API_KEY
+cd deploy && docker compose up -d --build
 docker exec rag-ollama ollama pull bge-m3 # ~1.2 GB, solo la primera vez
 
 # verificación
-curl http://IP_VPS:11434/api/tags
+curl http://localhost/api/health          # estado: ok + ragService.disponible
+curl http://IP_VPS:11434/api/tags         # solo desde la propia VPS (bind 127.0.0.1)
 docker exec rag-postgres psql -U ragapp -c "SELECT extname FROM pg_extension WHERE extname='vector';"
 ```
 
-El esquema `app` se crea automáticamente al primer arranque (el compose monta
-`scripts/postgres/schema.sql`; el esquema `rag` lo crea el propio rag-service).
-
-Conexión desde local — dos opciones:
-1. **Puertos abiertos** (firewall limitado a tu IP): `DATABASE_DSN=postgresql://ragapp:<password>@IP_VPS:5432/ragapp` y `OLLAMA_BASE_URL=http://IP_VPS:11434/v1`
-2. **Túnel SSH** (sin puertos abiertos): `ssh -L 5432:localhost:5432 -L 11434:localhost:11434 <vps>` → usa `localhost` en ambos
-
-Configura el DSN en DOS sitios: `rag-service/.env` (asyncpg) y
-`backend/src/RAG.Api/appsettings.json` → `Storage:ConnectionString` (Npgsql).
+- Solo `web` publica puerto (`WEB_PORT`, defecto 80); el resto vive en la red interna de
+  compose. Para dominio+HTTPS, pon Caddy (o nginx+certbot) delante de `web`.
+- 5432/11434 quedan publicados solo en `127.0.0.1` de la VPS (túnel SSH para desarrollar
+  en local contra esos datos, ver «Arranque en desarrollo»).
+- El rate limiter del backend honra `X-Forwarded-For` en este despliegue
+  (`RateLimit__TrustProxyHeaders=true`): cada usuario conserva su cubo tras nginx.
+- El esquema `app` se crea automáticamente al primer arranque (el compose monta
+  `scripts/postgres/schema.sql`); el esquema `rag` (chunks+embeddings) lo crea el propio
+  rag-service.
 
 ⚠️ Cambiar de modelo de embeddings exige vaciar los documentos indexados y reingestarlos.
 
 ## Arranque en desarrollo
 
 ```bash
-# 1) Infraestructura de datos: contenedores Postgres(pgvector) + Ollama EN LA VPS
-#    (ver sección "Infraestructura en la VPS" más arriba; solo la primera vez)
+# 1) Infraestructura de datos: Postgres(pgvector) + Ollama en la VPS (ya desplegados
+#    por el stack completo; para solo datos: cd deploy && docker compose up -d postgres ollama)
+#    y túnel SSH desde local: ssh -L 5432:localhost:5432 -L 11434:localhost:11434 <vps>
 
 # 2) Credenciales locales: rag-service/.env (copiar desde .env.example, ajusta IP_VPS
 #    y password) y backend/src/RAG.Api/appsettings.json → Storage:ConnectionString
@@ -70,6 +75,9 @@ Configura el DSN en DOS sitios: `rag-service/.env` (asyncpg) y
 cd rag-service
 py -3.12 -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 .venv/Scripts/python -m uvicorn app.main:app --port 8000
+# para debuguear
+.venv\Scripts\python -m pip install debugpy
+.venv\Scripts\python -m debugpy --listen 5678 -m uvicorn app.main:app --port 8000
 
 # 4) Backend .NET (puerto 5000)
 cd backend/src/RAG.Api
@@ -96,7 +104,7 @@ npm install && npm run dev
 ## Pruebas (todas sin red ni claves)
 
 ```bash
-dotnet test RagApp.slnx                      # 24 tests de integración API con fakes
+dotnet test RagApp.slnx                      # 29 tests de integración API con fakes
 cd rag-service && .venv/Scripts/python -m pytest tests -q   # 56 tests unitarios+rutas
 cd frontend && npx vitest run                # 9 tests Vitest + RTL
 ```

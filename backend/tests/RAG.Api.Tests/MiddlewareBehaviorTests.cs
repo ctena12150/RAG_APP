@@ -87,4 +87,69 @@ public sealed class MiddlewareBehaviorTests
     {
         Assert.Equal(StatusCodes.Status200OK, await EjecutarAuthAsync("/api/documents", null, null));
     }
+
+    // --- rate limit con proxy inverso (despliegue en contenedores) ---
+
+    private static RateLimitMiddleware CrearRateLimit() =>
+        new(_ => Task.CompletedTask, NullLogger<RateLimitMiddleware>.Instance);
+
+    private static async Task<int> EjecutarRateLimitAsync(
+        RateLimitMiddleware middleware, string path, RateLimitOptions opciones,
+        string? forwardedFor, string remoteIp = "203.0.113.9")
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Path = path;
+        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(remoteIp);
+        context.Response.Body = new MemoryStream();
+        if (forwardedFor is not null) context.Request.Headers["X-Forwarded-For"] = forwardedFor;
+
+        await middleware.InvokeAsync(context, Options.Create(opciones));
+        return context.Response.StatusCode;
+    }
+
+    [Fact]
+    public async Task Rate_limit_bloquea_con_429_al_superar_el_limite_general()
+    {
+        var middleware = CrearRateLimit();
+        var opciones = new RateLimitOptions { GeneralLimit = 1, ExpensiveLimit = 0, WindowMinutes = 15 };
+
+        Assert.Equal(StatusCodes.Status200OK, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, null));
+        Assert.Equal(StatusCodes.Status429TooManyRequests, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, null));
+    }
+
+    [Fact]
+    public async Task Rate_limit_distingue_clientes_por_XForwardedFor_cuando_confia_en_proxy()
+    {
+        var middleware = CrearRateLimit();
+        var opciones = new RateLimitOptions { GeneralLimit = 1, ExpensiveLimit = 0, WindowMinutes = 15, TrustProxyHeaders = true };
+
+        // clientes distintos tras el proxy → cubos independientes aunque la IP remota sea la del proxy
+        Assert.Equal(StatusCodes.Status200OK, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, "198.51.100.7"));
+        Assert.Equal(StatusCodes.Status200OK, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, "198.51.100.8"));
+        // el mismo cliente dos veces → 429
+        Assert.Equal(StatusCodes.Status429TooManyRequests, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, "198.51.100.7"));
+    }
+
+    [Fact]
+    public async Task Rate_limit_ignora_XForwardedFor_por_defecto()
+    {
+        var middleware = CrearRateLimit();
+        var opciones = new RateLimitOptions { GeneralLimit = 1, ExpensiveLimit = 0, WindowMinutes = 15 };
+
+        // sin TrustProxyHeaders, todas las peticiones caen en el cubo de la IP remota
+        Assert.Equal(StatusCodes.Status200OK, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, "198.51.100.7"));
+        Assert.Equal(StatusCodes.Status429TooManyRequests, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, "198.51.100.8"));
+    }
+
+    [Fact]
+    public async Task Rate_limit_usa_primera_IP_de_cadena_XForwardedFor()
+    {
+        var middleware = CrearRateLimit();
+        var opciones = new RateLimitOptions { GeneralLimit = 1, ExpensiveLimit = 0, WindowMinutes = 15, TrustProxyHeaders = true };
+
+        // cadena "cliente, proxy1, proxy2": solo el primer salto cuenta como cliente
+        Assert.Equal(StatusCodes.Status200OK, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, "198.51.100.7, 10.0.0.1, 10.0.0.2"));
+        Assert.Equal(StatusCodes.Status200OK, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, "198.51.100.8, 10.0.0.1"));
+        Assert.Equal(StatusCodes.Status429TooManyRequests, await EjecutarRateLimitAsync(middleware, "/api/documents", opciones, "198.51.100.7, 10.0.0.1"));
+    }
 }

@@ -1,8 +1,15 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useApp } from "../state/AppContext";
 import { dividirPorCitas } from "../lib/api";
+import {
+  copiarAlPortapapeles,
+  detenerLectura,
+  leerEnVozAlta,
+  soportaSintesis,
+  textoPlanoMarkdown,
+} from "../lib/voz";
 import type { Fuente, MensajeChat, TrazaPipeline } from "../lib/types";
 
 const MermaidDiagrama = lazy(() => import("./MermaidDiagrama"));
@@ -27,6 +34,7 @@ export default function MessageBubble({ mensaje }: { mensaje: MensajeChat }) {
         ) : (
           <>
             <RespuestaAsistente mensaje={mensaje} />
+            {!esUsuario && !mensaje.pendiente && <AccionesMensaje mensaje={mensaje} />}
             {!esUsuario && !mensaje.pendiente && (mensaje.verificacion || mensaje.traza) && (
               <div className="mt-2 flex flex-wrap items-center gap-2 border-t pt-2" style={{ borderColor: "var(--line)" }}>
                 <VerificacionBadge verificacion={mensaje.verificacion} />
@@ -214,6 +222,65 @@ function BotonTraza({ traza }: { traza: TrazaPipeline }) {
     >
       ⏱ Traza ({traza.modo})
     </button>
+  );
+}
+
+/** Acciones por mensaje asistente: escuchar en voz alta y copiar al portapapeles. */
+function AccionesMensaje({ mensaje }: { mensaje: MensajeChat }) {
+  const [copiado, setCopiado] = useState(false);
+  const [leyendo, setLeyendo] = useState(false);
+  const leyendoRef = useRef(false);
+  leyendoRef.current = leyendo;
+
+  useEffect(() => () => { if (leyendoRef.current) detenerLectura(); }, []);
+
+  const copiar = async () => {
+    const ok = await copiarAlPortapapeles(textoPlanoMarkdown(mensaje.contenido));
+    if (ok) {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    }
+  };
+
+  const alternarLectura = () => {
+    if (leyendo) {
+      detenerLectura();
+      setLeyendo(false);
+      return;
+    }
+    if (!textoPlanoMarkdown(mensaje.contenido)) return;
+    setLeyendo(true);
+    leerEnVozAlta(mensaje.id, textoPlanoMarkdown(mensaje.contenido), () => setLeyendo(false));
+  };
+
+  return (
+    <div
+      className="mt-2 flex flex-wrap items-center gap-1.5 border-t pt-1.5 text-[11px]"
+      style={{ borderColor: "var(--line)" }}
+    >
+      {soportaSintesis() && (
+        <button
+          type="button"
+          aria-label={leyendo ? "Detener lectura" : "Escuchar respuesta"}
+          title={leyendo ? "Detener lectura" : "Escuchar respuesta"}
+          onClick={alternarLectura}
+          className="btn-iconte"
+          style={{ color: leyendo ? "var(--accent-b)" : "var(--ink-soft)" }}
+        >
+          {leyendo ? "■ Detener" : "🔊 Escuchar"}
+        </button>
+      )}
+      <button
+        type="button"
+        aria-label={copiado ? "Copiado" : "Copiar respuesta"}
+        title="Copiar al portapapeles"
+        onClick={() => void copiar()}
+        className="btn-iconte"
+        style={{ color: copiado ? "var(--accent-a)" : "var(--ink-soft)" }}
+      >
+        {copiado ? "✓ Copiado" : "📋 Copiar"}
+      </button>
+    </div>
   );
 }
 
