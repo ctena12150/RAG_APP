@@ -11,6 +11,13 @@ vi.mock("../lib/api", () => ({
     listarDocumentos: vi.fn(async () => []),
     listarFolders: vi.fn(async () => []),
     listarConversaciones: vi.fn(async () => []),
+    me: vi.fn(async () => ({
+      autenticado: false,
+      email: null,
+      nombre: null,
+      proveedor: null,
+      proveedores: [],
+    })),
   },
   streamChat: vi.fn(),
   describirAgente: vi.fn(() => ""),

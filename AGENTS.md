@@ -13,6 +13,7 @@ rag-service/app                 config.py · core/(llms,embeddings) · retrieval
                                 chunking/chunker.py · generation/(generate,guardrails) · agents/director.py
                                 pipeline/(fixed,agentic,verificacion).py · api/routes.py
 frontend/src                    components/ · state/AppContext.tsx · lib/(api,types,export) · test/
+backend/tools/CrearUsuario      utilidad de consola para crear usuarios locales (hash BCrypt)
 scripts/postgres/schema.sql     esquema "app" (.NET); el esquema "rag" se auto-crea al arrancar Python
 ```
 
@@ -21,7 +22,7 @@ scripts/postgres/schema.sql     esquema "app" (.NET); el esquema "rag" se auto-c
 ### Backend .NET (backend/)
 ```bash
 dotnet build RagApp.slnx                                   # compilar todo (0 errores esperados)
-dotnet test RagApp.slnx                                    # suite completa (25 tests)
+dotnet test RagApp.slnx                                    # suite completa (43 tests)
 dotnet test backend/tests/RAG.Api.Tests --filter "FullyQualifiedName~Upload_duplicado"   # UN test por nombre
 dotnet test backend/tests/RAG.Api.Tests --filter "FullyQualifiedName~DocumentsRouteTests" # una clase
 ```
@@ -44,7 +45,7 @@ Dev-deps: `pip install -r requirements-dev.txt` (ruff).
 ```bash
 npx tsc -b                       # typecheck estricto (debe pasar sin errores)
 npm run build                    # build producción
-npx vitest run                   # suite completa (9)
+npx vitest run                   # suite completa (30)
 npx vitest run src/test/lib.test.tsx                           # un archivo
 npx vitest run -t "dividirPorCitas"                            # UN test por nombre
 ```
@@ -127,6 +128,8 @@ Primer venv: `py -3.12 -m venv rag-service/.venv && ... pip install -r requireme
 **Chat**: frontend → `POST /api/conversations/{id}/messages` → valida pregunta (jailbreak/longitud) + rechazo sin documentos → persiste mensaje usuario → auto-título (truncado) → relay SSE de Python (`RagChatRelay`) → persiste assistant en `done`, verificación/revisión en sus eventos → PATCH `.../revision` aplica la revisión aceptada.
 
 **Retrieval compartido** (`run_retrieval`): reescritura (si historial) → expansión multi-query → híbrido por variante (vector+keyword) → RRF → dedupe Jaccard → rerank LLM (fail-open) → red de rescate para preguntas amplias. Modo fijo = 1 pasada; agéntico = N pasadas por herramientas del Director + fallback transparente al fijo si el planner falla antes del primer token.
+
+**Acceso al chat (auth)**: solo si `Auth:Enabled`. Dos vías: **Google** (OIDC + lista blanca) y **login local** (usuario/contraseña contra `app.usuarios`, SIN lista blanca). `AuthEndpoints` (`/auth/login/google`, `POST /auth/login`, `/auth/signout`, `/auth/me`, `/auth/denegado`). Google usa `AddOpenIdConnect` (paquete `Microsoft.AspNetCore.Authentication.OpenIdConnect` 10.0.11; ya no va en el shared framework) y se registra solo con credenciales. `AuthRegistration.ValidarListaBlancaAsync` en `OnTokenValidated` valida el email (claim `email`) contra `IUsuarioPermitidoStore` (Postgres `app.usuarios_permitidos` o InMemory); fuera de lista ⇒ `context.Fail` ⇒ redirect a `DenegadoPath`. El login local verifica BCrypt (`BCrypt.Net.BCrypt.Verify`) contra `IUsuarioLocalStore` (Postgres `app.usuarios` o InMemory); fallo ⇒ 401 `credenciales_invalidas`; entra en los `proveedores` si `Auth:LocalLoginHabilitado`. Ambos emiten la cookie httpOnly `rag.session` SameSite=Lax; `OnRedirectToLogin` devuelve 401/403 en `/api` (nunca redirect para fetch). `/api/conversations` porta `group.RequireAuthorization()`; el resto queda abierto (alcance decidido). El frontend llama `api.me()` al montar y escucha el evento `rag:no-autorizado` (emitido ante 401) para volver a login. Crear usuarios locales con `dotnet run --project backend/tools/CrearUsuario -- --connection "$RAG_POSTGRES" --usuario ...`. Microsoft quedó fuera del alcance.
 
 ## Trampas conocidas (muerde una vez, aprende para siempre)
 

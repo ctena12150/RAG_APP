@@ -1,0 +1,21 @@
+# Archivo adicional para añadir Caddy (proxy HTTPS) al stack existente.
+# No reemplaza tu docker-compose.yml, se usa junto a él con -f (ver instrucciones).
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: rag-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:

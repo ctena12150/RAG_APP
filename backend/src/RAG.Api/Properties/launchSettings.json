@@ -7,7 +7,14 @@
       "launchBrowser": false,
       "applicationUrl": "http://localhost:5000",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Storage__Provider": "PostgreSql",
+        "Storage__ConnectionString": "Host=127.0.0.1;Port=15432;Database=ragapp;Username=ragapp;Password=RagTest2026-1234",
+        "Auth__Enabled": "true",
+        "Auth__LocalLoginHabilitado": "true",
+        "Auth__GoogleClientId": "890691090783-2mhh2on6ugu3cf3uvot9vus713rq6ekf.apps.googleusercontent.com",
+        "Auth__GoogleClientSecret": "TU-CLIENT-SECRET-LOCAL",
+        "Auth__RequireHttps": "false"
       }
     },
     "https": {

@@ -6,6 +6,13 @@ const { apiMock, streamChatMock } = vi.hoisted(() => ({
   apiMock: {
     crearConversacion: vi.fn(),
     mensajesDe: vi.fn(),
+    me: vi.fn(async () => ({
+      autenticado: false,
+      email: null,
+      nombre: null,
+      proveedor: null,
+      proveedores: [],
+    })),
   },
   streamChatMock: vi.fn(),
 }));

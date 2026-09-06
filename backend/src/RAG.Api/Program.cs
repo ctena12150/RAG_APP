@@ -1,4 +1,6 @@
 using System.Text;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using RAG.Api.Configuration;
 using RAG.Api.Endpoints;
 using RAG.Api.Middleware;
@@ -16,12 +18,16 @@ builder.Services.Configure<RagServiceOptions>(builder.Configuration.GetSection(R
 builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection(SecurityOptions.SectionName));
 builder.Services.Configure<UploadsOptions>(builder.Configuration.GetSection(UploadsOptions.SectionName));
 builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection(RateLimitOptions.SectionName));
+builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 
 var storage = builder.Configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>() ?? new StorageOptions();
 
 // instancias de opciones en DI para poder inyectarlas con [FromServices] en minimal APIs
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<StorageOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<UploadsOptions>>().Value);
+
+var auth = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
+builder.Services.AddSingleton(auth);
 
 if (storage.Provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
 {
@@ -30,6 +36,8 @@ if (storage.Provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
     builder.Services.AddScoped<IFolderStore, PostgreSqlFolderStore>();
     builder.Services.AddScoped<IConversationStore, PostgreSqlConversationStore>();
     builder.Services.AddScoped<IMessageStore, PostgreSqlMessageStore>();
+    builder.Services.AddScoped<IUsuarioPermitidoStore, PostgreSqlUsuarioPermitidoStore>();
+    builder.Services.AddScoped<IUsuarioLocalStore, PostgreSqlUsuarioLocalStore>();
 }
 else
 {
@@ -37,6 +45,8 @@ else
     builder.Services.AddSingleton<IFolderStore, InMemoryFolderStore>();
     builder.Services.AddSingleton<IConversationStore, InMemoryConversationStore>();
     builder.Services.AddSingleton<IMessageStore, InMemoryMessageStore>();
+    builder.Services.AddSingleton<IUsuarioPermitidoStore>(new InMemoryUsuarioPermitidoStore());
+    builder.Services.AddSingleton<IUsuarioLocalStore>(new InMemoryUsuarioLocalStore());
 }
 
 builder.Services.AddSingleton<TextExtractorResolver>(_ => new TextExtractorResolver(
@@ -61,6 +71,16 @@ builder.Services.AddScoped<RagChatRelay>();
 builder.Services.AddSingleton<IngestionQueue>();
 builder.Services.AddHostedService<IngestionWorker>();
 
+// OIDC (Google) + cookie de sesión para acceder al chat. Solo con Auth:Enabled;
+// el proveedor Google se registra únicamente si hay credenciales configuradas.
+if (auth.Enabled)
+{
+    builder.Services.AddAuthorization();
+    builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, o => AuthRegistration.ConfigurarCookie(o, auth))
+        .AddGoogleOidc(auth);
+}
+
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 {
     var security = builder.Configuration.GetSection(SecurityOptions.SectionName).Get<SecurityOptions>() ?? new SecurityOptions();
@@ -71,10 +91,38 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 
 var app = builder.Build();
 
+// El backend vive tras Caddy→nginx: el esquema real llega por X-Forwarded-Proto (necesario
+// para que OIDC construya el redirect_uri https y para la cookie Secure).
+// Espera siempre detrás de un proxy de confianza; ratelimit ya aprovecha X-Forwarded-For.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+if (auth.Enabled)
+{
+    using var scope = app.Services.CreateScope();
+    try
+    {
+        var whitelist = scope.ServiceProvider.GetRequiredService<IUsuarioPermitidoStore>();
+        await ListaBlancaSeeder.SembrarAsync(whitelist, auth);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "No se pudo sembrar la lista blanca desde configuración.");
+    }
+}
+
 // el rate limit corre primero y escribe su propio 429 controlado
 app.UseMiddleware<RateLimitMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseCors();
+
+if (auth.Enabled)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 //app.UseHttpsRedirection();
@@ -83,7 +131,8 @@ app.UseMiddleware<InternalAuthMiddleware>();
 app.MapDocuments();
 app.MapFolders();
 app.MapQuery();
-app.MapConversations();
+app.MapConversations(exigirAuth: auth.Enabled);
+app.MapAuth(auth);
 
 app.Run();
 

@@ -1,8 +1,8 @@
 """Motor de retrieval compartido: expandir → búsqueda híbrida → fusionar RRF →
 deduplicar → rerank. El pipeline fijo lo ejecuta una vez; el agéntico, una por búsqueda."""
-
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -104,10 +104,16 @@ class RetrievalEngine:
     ) -> list[list[Hit]]:
         """Vectorial + keyword en paralelo; devuelve las listas rankeadas para RRF."""
         embedding = (await self._embeddings.embed([consulta]))[0]
-        vector_hits = await self._store.busqueda_vector(embedding, dominios, documentos_ids, k)
+
         if not self._settings.enable_hybrid_search:
+            vector_hits = await self._store.busqueda_vector(embedding, dominios, documentos_ids, k)
             return [vector_hits]
-        keyword_hits = await self._store.busqueda_keyword(consulta, dominios, documentos_ids, k)
+        vector_hits, keyword_hits = await asyncio.gather(
+            self._store.busqueda_vector(embedding, dominios, documentos_ids, k),
+            self._store.busqueda_keyword(consulta, dominios, documentos_ids, k),
+        )
+        #vector_hits = await self._store.busqueda_vector(embedding, dominios, documentos_ids, k)
+        #keyword_hits = await self._store.busqueda_keyword(consulta, dominios, documentos_ids, k)
         return [vector_hits, keyword_hits]
 
     async def reranquear(

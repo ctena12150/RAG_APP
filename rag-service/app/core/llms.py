@@ -26,10 +26,16 @@ _API_KEYS = {"groq": "groq_api_key", "mistral": "mistral_api_key"}
 class LlmClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._client = httpx.AsyncClient(
+            timeout=settings.llm_timeout_seconds,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            http2=True,  # HTTP/2 multiplexa requests en una sola conexión
+        )
         self.ultimo_proveedor: str | None = None
         self.ultimo_modelo: str | None = None
         self.ultimo_fallback: bool = False
-
+    async def close(self) -> None:
+        await self._client.aclose()
     def _endpoint(self, proveedor: str) -> tuple[str, dict[str, str]]:
         base_url = getattr(self._settings, _BASE_URLS[proveedor])
         headers = {"Content-Type": "application/json"}

@@ -1,0 +1,10 @@
+# Sustituye "midominio.com" por tu dominio real.
+# Si usas un subdominio (ej. app.midominio.com), pon ese en su lugar.
+186-240-150-93.nip.io {
+    reverse_proxy web:80
+}
+
+# Si quieres que "www.midominio.com" también funcione, añade:
+# www.midominio.com {
+#     redir https://midominio.com{uri} permanent
+# }

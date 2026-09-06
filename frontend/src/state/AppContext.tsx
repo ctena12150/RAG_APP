@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from "react";
 import { api, describirAgente, streamChat } from "../lib/api";
 import type { PerfilChat } from "../lib/api";
-import type { Conversacion, Dominio, Documento, Folder, Fuente, MensajeChat, MetricasGeneracion, TrazaPipeline, Verificacion } from "../lib/types";
+import type { Conversacion, Dominio, Documento, Folder, Fuente, MensajeChat, MetricasGeneracion, TrazaPipeline, Usuario, Verificacion } from "../lib/types";
 
 interface EstadoChat {
   mensajes: MensajeChat[];
@@ -32,6 +32,13 @@ interface AppContextValue {
 
   tema: "dark" | "light";
   alternarTema: () => void;
+
+  usuario: Usuario | null;
+  proveedoresDisponibles: string[];
+  authCargando: boolean;
+  iniciarSesion: (proveedor: string) => void;
+  iniciarSesionLocal: (usuario: string, contrasena: string) => Promise<void>;
+  cerrarSesion: () => void;
 
   dominioActivo: Dominio | "todas";
   setDominioActivo: (d: Dominio | "todas") => void;
@@ -78,6 +85,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tema, setTema] = useState<"dark" | "light">(
     () => (localStorage.getItem("rag-theme") as "dark" | "light") ?? "dark",
   );
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [proveedoresDisponibles, setProveedoresDisponibles] = useState<string[]>([]);
+  const [authCargando, setAuthCargando] = useState(true);
   const [dominioActivo, setDominioActivo] = useState<Dominio | "todas">("rrhh");
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -117,6 +127,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const alternarTema = useCallback(() => {
     setTema((t) => (t === "dark" ? "light" : "dark"));
   }, []);
+
+  // sesión al arrancar + expulsión si un 401 indica sesión caducada/usuario fuera de lista
+  useEffect(() => {
+    let activo = true;
+    const chequearSesion = async () => {
+      try {
+        const estado = await api.me();
+        if (!activo) return;
+        setProveedoresDisponibles(estado.proveedores);
+        if (estado.autenticado && estado.email) {
+          setUsuario({ email: estado.email, nombre: estado.nombre, proveedor: estado.proveedor });
+        } else {
+          setUsuario(null);
+          if (estado.proveedores.length > 0) setVista("landing");
+        }
+      } catch {
+        if (activo) {
+          setUsuario(null);
+          setProveedoresDisponibles([]);
+        }
+      } finally {
+        if (activo) setAuthCargando(false);
+      }
+    };
+    const expulsar = () => {
+      setUsuario(null);
+      setAuthCargando(false);
+      setVista("landing");
+    };
+    void chequearSesion();
+    window.addEventListener("rag:no-autorizado", expulsar);
+    return () => {
+      activo = false;
+      window.removeEventListener("rag:no-autorizado", expulsar);
+    };
+  }, []);
+
+  const iniciarSesion = useCallback((proveedor: string) => api.iniciarSesion(proveedor), []);
+  const iniciarSesionLocal = useCallback(async (usuario: string, contrasena: string) => {
+    const estado = await api.iniciarSesionLocal(usuario, contrasena);
+    setProveedoresDisponibles(estado.proveedores);
+    if (estado.autenticado && estado.email) {
+      setUsuario({ email: estado.email, nombre: estado.nombre, proveedor: estado.proveedor });
+    }
+  }, []);
+  const cerrarSesion = useCallback(() => api.cerrarSesion(), []);
 
   const refrescarDocumentos = useCallback(async () => {
     try {
@@ -365,6 +421,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       entrarApp,
       tema,
       alternarTema,
+      usuario,
+      proveedoresDisponibles,
+      authCargando,
+      iniciarSesion,
+      iniciarSesionLocal,
+      cerrarSesion,
       dominioActivo,
       setDominioActivo,
       documentos,
@@ -391,7 +453,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       aceptarRevision,
     }),
     [
-      vista, entrarApp, tema, alternarTema, dominioActivo, documentos, folders, refrescarDocumentos,
+      vista, entrarApp, tema, alternarTema, usuario, proveedoresDisponibles, authCargando,
+      iniciarSesion, iniciarSesionLocal, cerrarSesion, dominioActivo, documentos, folders, refrescarDocumentos,
       subirDocumento, borrarDocumento, crearFolder, borrarFolder, subidaActiva, docResaltado,
       errorSubida, conversaciones, conversacionActiva,
       chat, fuentesSeleccionadas, refrescarConversaciones, abrirConversacion, nuevaConversacion,

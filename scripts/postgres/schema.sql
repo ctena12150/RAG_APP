@@ -58,3 +58,36 @@ CREATE TABLE IF NOT EXISTS app.mensajes (
 CREATE INDEX IF NOT EXISTS ix_mensajes_conversacion ON app.mensajes(conversacion_id, creado_utc);
 
 ALTER TABLE app.mensajes ADD COLUMN IF NOT EXISTS metricas_json jsonb;
+
+-- Lista blanca de acceso al chat (login Google/Microsoft): una entrada es un email
+-- exacto O un dominio (parte tras la @). Nunca ambos.
+CREATE TABLE IF NOT EXISTS app.usuarios_permitidos (
+    id         uuid PRIMARY KEY,
+    email      varchar(320),
+    dominio    varchar(253),
+    activo     boolean      NOT NULL DEFAULT true,
+    creado_utc timestamptz  NOT NULL DEFAULT now(),
+    CONSTRAINT chk_email_o_dominio
+        CHECK ((email IS NOT NULL AND dominio IS NULL) OR (email IS NULL AND dominio IS NOT NULL)),
+    CONSTRAINT chk_email_contiene_arroba
+        CHECK (email IS NULL OR email LIKE '%@%'),
+    CONSTRAINT chk_dominio_sin_arroba
+        CHECK (dominio IS NULL OR dominio NOT LIKE '%@%')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_permitidos_email ON app.usuarios_permitidos(email) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_permitidos_dominio ON app.usuarios_permitidos(dominio) WHERE dominio IS NOT NULL;
+
+-- Credenciales locales de acceso al chat (login usuario/contraseña). La contraseña viaja
+-- siempre como hash BCrypt (password_hash); el nombre de usuario es único e ignorará mayúsculas.
+CREATE TABLE IF NOT EXISTS app.usuarios (
+    id            uuid PRIMARY KEY,
+    usuario       varchar(100) NOT NULL,
+    password_hash varchar(255) NOT NULL,
+    email         varchar(320),
+    nombre        varchar(200),
+    activo        boolean      NOT NULL DEFAULT true,
+    creado_utc    timestamptz  NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_usuario ON app.usuarios(lower(usuario));

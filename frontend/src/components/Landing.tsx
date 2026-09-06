@@ -1,15 +1,31 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Moon, Sun } from "lucide-react";
 import { useApp } from "../state/AppContext";
 import { LogoMark } from "./LogoMark";
 import { AmbientBackground } from "./AmbientBackground";
 import { GrainOverlay } from "./GrainOverlay";
+import LoginModal from "./LoginModal";
 const SignalBackground = lazy(() => import("./hero/SignalBackground"));
 
 export default function Landing() {
-  const { entrarApp, tema, alternarTema } = useApp();
+  const { entrarApp, tema, alternarTema, usuario, authCargando, proveedoresDisponibles } = useApp();
   const reduceMotion = useReducedMotion() ?? false;
+  const [mostrarLogin, setMostrarLogin] = useState(false);
+
+  // la landing es pública: el login solo aparece tras pulsar el CTA (segundo paso)
+  const requiereLogin = !usuario && !authCargando && proveedoresDisponibles.length > 0;
+  const loginConfigurado = proveedoresDisponibles.length > 0;
+
+  const alPulsarEntrar = () => {
+    if (usuario || !loginConfigurado) entrarApp();
+    else setMostrarLogin(true);
+  };
+
+  // tras un login correcto (local o retorno de Google) entra solo al chat
+  useEffect(() => {
+    if (usuario && mostrarLogin) entrarApp();
+  }, [usuario, mostrarLogin, entrarApp]);
 
   return (
     <div className="relative flex min-h-svh flex-col overflow-hidden" style={{ background: "var(--bg)", color: "var(--ink)" }}>
@@ -81,21 +97,27 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55, duration: 0.55 }}
           >
-            <motion.button
-              type="button"
-              onClick={entrarApp}
-              whileHover={reduceMotion ? {} : { scale: 1.03, y: -1 }}
-              whileTap={reduceMotion ? {} : { scale: 0.97, y: 0 }}
-              className="group mt-2 flex items-center gap-2 rounded-full px-6 py-3 font-medium"
-              style={{
-                background: "linear-gradient(135deg, var(--accent-a), var(--accent-b))",
-                color: "#0c1512",
-                boxShadow: "0 1px 0 0 rgba(255,255,255,0.15) inset, 0 8px 24px -8px var(--accent-a)",
-              }}
-            >
-              Empezar a consultar
-              <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
-            </motion.button>
+            {authCargando && loginConfigurado ? (
+              <span className="mt-2 block text-sm" style={{ color: "var(--ink-soft)" }}>
+                Comprobando acceso…
+              </span>
+            ) : (
+              <motion.button
+                type="button"
+                onClick={alPulsarEntrar}
+                whileHover={reduceMotion ? {} : { scale: 1.03, y: -1 }}
+                whileTap={reduceMotion ? {} : { scale: 0.97, y: 0 }}
+                className="group mt-2 flex items-center gap-2 rounded-full px-6 py-3 font-medium cursor-pointer"
+                style={{
+                  background: "linear-gradient(135deg, var(--accent-a), var(--accent-b))",
+                  color: "#0c1512",
+                  boxShadow: "0 1px 0 0 rgba(255,255,255,0.15) inset, 0 8px 24px -8px var(--accent-a)",
+                }}
+              >
+                Empezar a consultar
+                <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
+              </motion.button>
+            )}
           </motion.div>
         </motion.div>
       </main>
@@ -103,6 +125,7 @@ export default function Landing() {
       <footer className="relative z-10 mx-auto max-w-6xl px-6 pb-10 text-center text-xs" style={{ color: "var(--ink-soft)" }}>
         Prototipo funcional · .NET 10 · Python/LangChain · PostgreSQL + pgvector
       </footer>
+      {mostrarLogin && requiereLogin && <LoginModal onClose={() => setMostrarLogin(false)} />}
     </div>
   );
 }

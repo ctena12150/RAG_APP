@@ -7,7 +7,7 @@ import SourcesPanel from "./components/SourcesPanel";
 import CommandPalette from "./components/CommandPalette";
 
 function Shell() {
-  const { vista, tema, alternarTema } = useApp();
+  const { vista, tema, alternarTema, usuario, cerrarSesion } = useApp();
   const [paletteAbierta, setPaletteAbierta] = useState(false);
   const [drawerMovil, setDrawerMovil] = useState(false);
 
@@ -58,6 +58,24 @@ function Shell() {
             Buscar… <kbd style={{ fontFamily: "var(--font-mono)" }}>Ctrl K</kbd>
           </button>
           <div className="flex items-center gap-3">
+            {usuario && (
+              <>
+                <span
+                  className="max-w-40 truncate text-xs"
+                  style={{ color: "var(--ink-soft)" }}
+                  title={usuario.email}
+                >
+                  {usuario.nombre ?? usuario.email}
+                </span>
+                <button
+                  onClick={cerrarSesion}
+                  className="rounded-md px-2 py-1 text-xs cursor-pointer"
+                  style={{ border: "1px solid var(--line)" }}
+                >
+                  Salir
+                </button>
+              </>
+            )}
             <span className="text-xs" style={{ color: "var(--ink-soft)" }}>
               {tema === "dark" ? "Noche" : "Día"}
             </span>

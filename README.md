@@ -56,9 +56,53 @@ docker exec rag-postgres psql -U ragapp -c "SELECT extname FROM pg_extension WHE
   (`RateLimit__TrustProxyHeaders=true`): cada usuario conserva su cubo tras nginx.
 - El esquema `app` se crea automáticamente al primer arranque (el compose monta
   `scripts/postgres/schema.sql`); el esquema `rag` (chunks+embeddings) lo crea el propio
-  rag-service.
+  rag-service. Si la BD ya existía, aplica a mano el SQL nuevo: `docker exec -i rag-postgres psql -U ragapp < scripts/postgres/schema.sql`.
 
 ⚠️ Cambiar de modelo de embeddings exige vaciar los documentos indexados y reingestarlos.
+
+### Acceso al chat: Google (lista blanca) o usuario/contraseña local
+
+La entrada al chat (`/api/conversations`) exige sesión cuando `Auth__Enabled=true`. Hay dos
+vías, ambas emiten la misma cookie httpOnly:
+
+- **Google (OIDC)**: el backend .NET valida el email contra `app.usuarios_permitidos`
+  (email exacto o dominio) antes de emitir la cookie.
+- **Login local**: usuario/contraseña contra `app.usuarios` (hash BCrypt), sin lista blanca.
+
+Con auth desactivada, el chat queda abierto como antes.
+
+1. **Crea una BD migrada**: asegúrate de que `app.usuarios_permitidos` y `app.usuarios` existan
+   (schema.sql).
+2. **Registra la app OAuth de Google** (o deja vacío para usar solo el login local):
+   `console.cloud.google.com/apis/credentials` → **OAuth 2.0 Client ID** (tipo Web),
+   redirect URI `https://<tu-dominio>/auth/callback-google`
+   (p. ej. `https://186-240-150-93.nip.io/auth/callback-google`).
+3. **Configura `.env`** de la VPS (o env del contenedor):
+   ```
+   AUTH_ENABLED=true
+   AUTH_GOOGLE_CLIENT_ID=...            AUTH_GOOGLE_CLIENT_SECRET=...
+   AUTH_LOCAL_LOGIN=true                # habilita el formulario usuario/contraseña
+   AUTH_WHITELIST_EMAILS=ana@empresa.com,luis@empresa.com   # semilla opcional (Google)
+   AUTH_WHITELIST_DOMAINS=empresa.com                       # dominio completo (Google)
+   ```
+4. **Lista blanca** de Google en `app.usuarios_permitidos` (administrable por SQL):
+   ```sql
+   INSERT INTO app.usuarios_permitidos (id, email, activo, creado_utc)
+   VALUES (gen_random_uuid(), 'ana@empresa.com', true, now());
+   INSERT INTO app.usuarios_permitidos (id, dominio, activo, creado_utc)
+   VALUES (gen_random_uuid(), 'empresa.com', true, now());   -- todo el dominio
+   ```
+   Fuera de lista ⇒ el login redirige a `/auth/denegado` (403) y nunca crea cookie.
+5. **Usuarios locales** (login usuario/contraseña): crea cuentas con la utilidad de consola
+   (guarda el hash BCrypt en `app.usuarios`):
+   ```bash
+   dotnet run --project backend/tools/CrearUsuario -- \
+     --connection "$RAG_POSTGRES" --usuario ana --email ana@empresa.com --nombre "Ana Ruiz"
+   # pide la contraseña sin eco (o pásala con --password para no interactivo)
+   ```
+
+La cookie es **httpOnly + SameSite=Lax**; el frontend solo ve el resultado de `GET /auth/me`.
+En desarrollo local (HTTP), `Auth__RequireHttps=false` o Auth desactivada.
 
 ## Arranque en desarrollo
 

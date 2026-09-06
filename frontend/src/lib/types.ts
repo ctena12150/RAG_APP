@@ -102,3 +102,19 @@ export interface Conversacion {
   documentosIds?: string[] | null;
   creadoUtc: string;
 }
+
+export type ProveedorLogin = "google" | "local";
+
+export interface EstadoAuth {
+  autenticado: boolean;
+  email: string | null;
+  nombre: string | null;
+  proveedor: string | null;
+  proveedores: ProveedorLogin[];
+}
+
+export interface Usuario {
+  email: string;
+  nombre?: string | null;
+  proveedor?: string | null;
+}

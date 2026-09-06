@@ -1,9 +1,15 @@
-import type { Conversacion, Documento, Dominio, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, TrazaPipeline, Verificacion } from "./types";
+import type { Conversacion, Documento, Dominio, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, TrazaPipeline, Verificacion } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
+/** Sesión caducada o no presente: la UI vuelve a la pantalla de login. */
+function notificarNoAutorizado(): void {
+  window.dispatchEvent(new Event("rag:no-autorizado"));
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(`${BASE}${path}`, init);
+  if (resp.status === 401) notificarNoAutorizado();
   if (!resp.ok) {
     let mensaje = `Error ${resp.status}`;
     try {
@@ -162,6 +168,25 @@ export const api = {
   listarModelos(): Promise<ModeloDisponible[]> {
     return request<{ modelos: ModeloDisponible[] }>("/api/models").then((respuesta) => respuesta.modelos);
   },
+
+  // --- sesión (cookies httpOnly; el login Google redirige el navegador al proveedor OIDC) ---
+  me(): Promise<EstadoAuth> {
+    return request<EstadoAuth>("/auth/me");
+  },
+  iniciarSesion(proveedor: string): void {
+    window.location.assign(`${BASE}/auth/login/${proveedor}`);
+  },
+  /** Login local (usuario/contraseña): el backend emite la cookie de sesión y devuelve el estado. */
+  iniciarSesionLocal(usuario: string, contrasena: string): Promise<EstadoAuth> {
+    return request<EstadoAuth>("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuario, contrasena }),
+    });
+  },
+  cerrarSesion(): void {
+    window.location.assign(`${BASE}/auth/signout`);
+  },
 };
 
 export interface ProgresoAgente {
@@ -208,6 +233,7 @@ export async function streamChat(
     } catch {
       /* sin cuerpo */
     }
+    if (resp.status === 401) notificarNoAutorizado();
     handlers.onError?.({ code: String(resp.status), message: mensaje });
     return;
   }

@@ -26,6 +26,14 @@ class EmbeddingsClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._limiter = asyncio.Semaphore(max(settings.embedding_max_concurrency, 1))
+        self._client = httpx.AsyncClient(
+            timeout=settings.llm_timeout_seconds,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            http2=True,  # HTTP/2 multiplexa requests en una sola conexión
+        )
+    
+    async def close(self) -> None:
+        await self._client.aclose()
 
     def _activo(self) -> tuple[str, str]:
         """Devuelve (proveedor, modelo) del primer eslabón con credencial disponible."""

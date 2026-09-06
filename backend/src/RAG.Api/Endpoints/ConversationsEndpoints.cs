@@ -12,9 +12,11 @@ namespace RAG.Api.Endpoints;
 public static class ConversationsEndpoints
 {
     private const int MaxHistoryTurns = 12;
-    public static IEndpointRouteBuilder MapConversations(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapConversations(this IEndpointRouteBuilder app, bool exigirAuth = false)
     {
         var group = app.MapGroup("/api/conversations").WithTags("Conversaciones");
+
+        if (exigirAuth) group.RequireAuthorization();
 
         group.MapPost("/", CreateAsync);
         group.MapGet("/", ListAsync);
