@@ -63,9 +63,9 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
 
   const convsFiltradas = useMemo(
     () =>
-      (conversaciones.length >= 5
-        ? conversaciones.filter((c) => c.titulo.toLowerCase().includes(filtroConv.toLowerCase()))
-        : conversaciones),
+    (conversaciones.length >= 5
+      ? conversaciones.filter((c) => c.titulo.toLowerCase().includes(filtroConv.toLowerCase()))
+      : conversaciones),
     [conversaciones, filtroConv],
   );
 
@@ -78,7 +78,7 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
     <div className="flex h-full flex-col text-sm">
       <div className="px-4 py-4" style={{ borderBottom: "1px solid var(--line)" }}>
         <span style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem" }}>
-          Evidentia<span className="accent-a">·</span>RAG
+          Evidentia 0.1<span className="accent-a">·</span>RAG
         </span>
       </div>
 
@@ -125,9 +125,8 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(i * 0.03, 0.25) }}
-                className={`group flex items-center justify-between rounded-md px-2 py-1.5 ${
-                  conversacionActiva?.id === c.id ? "" : ""
-                }`}
+                className={`group flex items-center justify-between rounded-md px-2 py-1.5 ${conversacionActiva?.id === c.id ? "" : ""
+                  }`}
                 style={{
                   background:
                     conversacionActiva?.id === c.id
@@ -330,17 +329,16 @@ function ListaDocumentos({ documentos }: { documentos: Documento[] }) {
         return (
           <li
             key={d.id}
-            className={`group fila-hover flex items-center gap-2 rounded-md px-2 py-1.5${
-              resaltado ? " fila-flash" : ""
-            }`}
+            className={`group fila-hover flex items-center gap-2 rounded-md px-2 py-1.5${resaltado ? " fila-flash" : ""
+              }`}
             style={
               resaltado
                 ? {
-                    background:
-                      resaltado === "listo"
-                        ? "color-mix(in oklab, var(--accent-a) 16%, transparent)"
-                        : "color-mix(in oklab, var(--accent-b) 16%, transparent)",
-                  }
+                  background:
+                    resaltado === "listo"
+                      ? "color-mix(in oklab, var(--accent-a) 16%, transparent)"
+                      : "color-mix(in oklab, var(--accent-b) 16%, transparent)",
+                }
                 : undefined
             }
           >
