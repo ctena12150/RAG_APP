@@ -16,10 +16,10 @@ from collections.abc import AsyncIterator
 
 from app.config import Settings
 from app.core.llms import LlmClient
-from app.generation.generate import FRASE_ABSTENCION, verificar
-from app.generation.guardrails import EvaluacionGuardrails, evaluar_salida, supera_umbral
+from app.generation.generate import verificar
+from app.generation.guardrails import EvaluacionGuardrails, evaluar_salida
 from app.models import Hit, Traza
-from app.retrieval.engine import RetrievalEngine
+from app.pipeline.comun import revisar
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +56,6 @@ async def _verificacion_y_revision(
     traza: Traza | None,
     hint: str | None,
     evaluacion_previa: EvaluacionGuardrails | None = None,
-    permitir_busqueda_extra: bool = False,
-    engine: RetrievalEngine | None = None,
-    dominios: list[str] | None = None,
-    documentos_ids: list[str] | None = None,
 ) -> AsyncIterator[dict]:
     """Juez LLM + guardrails previos → evento verified (+ revision_available si procede)."""
     try:
@@ -83,23 +79,9 @@ async def _verificacion_y_revision(
 
         critica = veredicto.get("critique") or "respuesta no sostenida por las fuentes"
 
-        revision = None
-        if permitir_busqueda_extra and engine is not None and fuentes:
-            # en modo agéntico: una pequeña búsqueda extra guiada por la crítica
-            contexto_extra = await engine.run_retrieval(
-                f"{pregunta} {critica[:200]}",
-                historial=[],
-                dominios=dominios,
-                documentos_ids=documentos_ids,
-                con_reescritura=False,
-            )
-            refs_existentes = {h.chunk_id for h in fuentes}
-            nuevas = [h for h in contexto_extra.hits if h.chunk_id not in refs_existentes]
-            fuentes.extend(nuevas)
-
-        from app.pipeline.fixed import _revisar
-
-        revision = await _revisar(settings, llm, pregunta, historial, fuentes, critica, hint)
+        # la revisión cita solo las fuentes del done ya emitido: nada de búsquedas
+        # extra aquí (renumerarían las citas que el usuario ya vio)
+        revision = await revisar(settings, llm, pregunta, historial, fuentes, critica, hint)
 
         payload_verificado = {
             "verdict": "unsupported",
@@ -119,25 +101,3 @@ async def _verificacion_y_revision(
     except Exception as exc:  # noqa: BLE001 — la verificación nunca rompe la respuesta ya mostrada
         logger.warning("Auto-verificación falló (%s); se marca como no verificada", type(exc).__name__)
         yield {"evento": "verified", "datos": {"verdict": "error"}}
-
-
-def _abstencion_por_umbral(
-    settings: Settings,
-    confianza: float | None,
-    traza: Traza | None,
-) -> dict | None:
-    """Devuelve el evento `done` de abstención directa si el contexto es demasiado débil."""
-    if supera_umbral(confianza, settings.guardrail_umbral_relevancia):
-        return None
-    if traza:
-        traza.agregar(
-            "guardrail_umbral",
-            confianza=round(confianza, 4) if confianza is not None else None,
-            umbral=settings.guardrail_umbral_relevancia,
-            resultado="abstencion_directa",
-        )
-    return {
-        "content": FRASE_ABSTENCION,
-        "sources": [],
-        "trace": traza.to_dict() if traza else None,
-    }

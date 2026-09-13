@@ -9,7 +9,8 @@ namespace RAG.Api.Services;
 public sealed record RelayOptions(
     RagChatRequest Request,
     Guid? ConversacionId,
-    string? TituloConversacion);
+    string? TituloConversacion,
+    bool IncluirTraza = true);
 
 public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConversationStore conversations)
 {
@@ -27,7 +28,9 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
         JsonNode? traza = null;
         JsonNode? metricas = null;
 
-        await foreach (var sse in rag.StreamChatAsync(options.Request, requestAborted))
+        try
+        {
+            await foreach (var sse in rag.StreamChatAsync(options.Request, requestAborted))
         {
             switch (sse.Evento)
             {
@@ -46,6 +49,7 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
 
                 case "done":
                     (contenidoFinal, fuentes, traza, metricas) = ParseDone(sse.Data);
+                    if (!options.IncluirTraza) traza = null;
                     if (options.ConversacionId.HasValue && contenidoFinal is not null)
                         await messages.AddAsync(new Message
                         {
@@ -83,7 +87,14 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
                 case "error":
                     await SseWriter.WriteRawAsync(response, "error", sse.Data, requestAborted);
                     return;
+                }
             }
+        }
+        catch (OperationCanceledException) when (requestAborted.IsCancellationRequested)
+        {
+            // cliente desconectado a mitad del stream: el await foreach ya liberó el
+            // upstream; no hay nada que escribir
+            return;
         }
 
         if (contenidoFinal is null)
@@ -125,11 +136,13 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
         {
             foreach (var item in arr.OfType<JsonObject>())
             {
+                if (!Guid.TryParse(item["documentoId"]?.ToString(), out var docId) || docId == Guid.Empty) continue;
+                if (!Guid.TryParse(item["chunkId"]?.ToString(), out var chunkId) || chunkId == Guid.Empty) continue;
                 fuentes.Add(new SourceCard(
                     item["indice"]?.GetValue<int>() ?? 0,
-                    Guid.TryParse(item["documentoId"]?.ToString(), out var docId) ? docId : Guid.Empty,
+                    docId,
                     item["documentoNombre"]?.ToString() ?? "",
-                    Guid.TryParse(item["chunkId"]?.ToString(), out var chunkId) ? chunkId : Guid.Empty,
+                    chunkId,
                     item["chunkIndice"]?.GetValue<int>() ?? 0,
                     item["pagina"]?.GetValue<int?>(),
                     item["seccion"]?.ToString(),

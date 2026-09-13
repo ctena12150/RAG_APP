@@ -22,7 +22,7 @@ export default function LoginModal({ onClose }: { onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(2,6,14,.6)" }}
+      style={{ background: "var(--overlay)" }}
       onClick={onClose}
     >
       <motion.div
@@ -37,7 +37,7 @@ export default function LoginModal({ onClose }: { onClose: () => void }) {
           background: "var(--bg-elev)",
           border: "1px solid var(--line)",
           color: "var(--ink)",
-          boxShadow: "0 24px 64px -16px rgba(0,0,0,.55), 0 1px 0 0 rgba(255,255,255,0.06) inset",
+          boxShadow: "var(--shadow-xl)",
         }}
         onClick={(e) => e.stopPropagation()}
       >

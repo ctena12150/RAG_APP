@@ -27,17 +27,23 @@ public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorH
         {
             await WriteAsync(context, StatusCodes.Status404NotFound, "no_encontrado", ex.Message);
         }
-        catch (InvalidDataException ex)
+        catch (InvalidDataException)
         {
-            await WriteAsync(context, StatusCodes.Status400BadRequest, "peticion_invalida", ex.Message);
+            await WriteAsync(context, StatusCodes.Status400BadRequest, "peticion_invalida", "La petición no es válida.");
         }
         catch (ExtraccionInvalidaException ex)
         {
             await WriteAsync(context, StatusCodes.Status409Conflict, "extraccion_invalida", ex.Message);
         }
-        catch (NotSupportedException ex)
+        catch (DocumentoDuplicadoException)
         {
-            await WriteAsync(context, StatusCodes.Status415UnsupportedMediaType, "formato_no_soportado", ex.Message);
+            await WriteAsync(context, StatusCodes.Status409Conflict, "documento_duplicado",
+                "Este contenido ya fue subido anteriormente.");
+        }
+        catch (NotSupportedException)
+        {
+            await WriteAsync(context, StatusCodes.Status415UnsupportedMediaType, "formato_no_soportado",
+                "Formato de archivo no soportado.");
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {

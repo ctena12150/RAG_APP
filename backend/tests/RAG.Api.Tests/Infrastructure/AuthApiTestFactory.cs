@@ -11,9 +11,12 @@ namespace RAG.Api.Tests.Infrastructure;
 /// <summary>
 /// Factory con Auth:Enabled=true y esquema de autenticación por defecto TestAuth.
 /// <see cref="ConfigurarTestAuth"/> controla si los tests navegan autenticados o con 401.
+/// Nunca red: el servicio RAG se sustituye por <see cref="FakeRagService"/>.
 /// </summary>
 public abstract class AuthApiTestFactoryBase : WebApplicationFactory<Program>
 {
+    public FakeRagService Rag { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -33,6 +36,9 @@ public abstract class AuthApiTestFactoryBase : WebApplicationFactory<Program>
         // último AddAuthentication(...) gana: TestAuth pasa a ser el esquema por defecto (sin red)
         services.AddAuthentication("TestAuth")
             .AddScheme<TestAuthOptions, TestAuthHandler>("TestAuth", ConfigurarTestAuth);
+
+        RemoveService<IRagService>(services);
+        services.AddSingleton<IRagService>(Rag);
 
         RemoveService<IUsuarioPermitidoStore>(services);
         services.AddSingleton<IUsuarioPermitidoStore>(new InMemoryUsuarioPermitidoStore([
@@ -73,6 +79,46 @@ public abstract class AuthApiTestFactoryBase : WebApplicationFactory<Program>
 /// <summary>Auth habilitada + usuario autenticado (identidad de prueba válida).</summary>
 public sealed class AuthApiTestFactory : AuthApiTestFactoryBase
 {
+}
+
+/// <summary>Auth habilitada como usuario con rol teamleader (puede subir/gestionar documentos).</summary>
+public sealed class AuthTeamLeaderApiTestFactory : AuthApiTestFactoryBase
+{
+    protected override void ConfigurarTestAuth(TestAuthOptions opciones)
+    {
+        opciones.Autenticar = true;
+        opciones.Email = "luis@empresa.com";
+        opciones.Nombre = "Luis Moreno";
+        opciones.Proveedor = "google";
+        opciones.Rol = "teamleader";
+    }
+}
+
+/// <summary>Auth habilitada como teamleader acotado a rrhh (solo gestiona ese dominio).</summary>
+public sealed class AuthTeamLeaderRrhhApiTestFactory : AuthApiTestFactoryBase
+{
+    protected override void ConfigurarTestAuth(TestAuthOptions opciones)
+    {
+        opciones.Autenticar = true;
+        opciones.Email = "rrhh-lead@empresa.com";
+        opciones.Nombre = "Rrhh Lead";
+        opciones.Proveedor = "local";
+        opciones.Rol = "teamleader";
+        opciones.Dominios = ["rrhh"];
+    }
+}
+
+/// <summary>Auth habilitada como superusuario (administración de usuarios locales).</summary>
+public sealed class AuthSuperUsuarioApiTestFactory : AuthApiTestFactoryBase
+{
+    protected override void ConfigurarTestAuth(TestAuthOptions opciones)
+    {
+        opciones.Autenticar = true;
+        opciones.Email = "admin@empresa.com";
+        opciones.Nombre = "Aida Rocha";
+        opciones.Proveedor = "local";
+        opciones.Rol = "superusuario";
+    }
 }
 
 /// <summary>Auth habilitada pero sin sesión: el esquema TestAuth responde 401.</summary>

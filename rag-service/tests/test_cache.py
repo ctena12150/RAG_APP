@@ -47,7 +47,10 @@ def test_cache_hit_con_vector_identico():
     cache = CacheSemantico()
     vector = [1.0, 0.0, 0.0]
     cache.guardar(vector, [{"evento": "done", "datos": {"content": "respuesta"}}])
-    assert cache.buscar(vector) == [{"evento": "done", "datos": {"content": "respuesta"}}]
+    # la traza y las métricas se guardan a null (pertenecen al turno original)
+    assert cache.buscar(vector) == [
+        {"evento": "done", "datos": {"content": "respuesta", "trace": None, "metrics": None}}
+    ]
     assert cache.hits == 1
 
 
@@ -65,7 +68,12 @@ def test_cache_no_comparte_entre_contextos_distintos():
     assert cache.buscar([1.0, 0.0], contexto="onboarding||auto|{}") is None
     assert cache.buscar([1.0, 0.0], contexto="rrhh|doc-9|auto|{}") is None
     assert cache.buscar([1.0, 0.0], contexto='rrhh||fixed|{"hibrida": false}') is None
-    assert cache.buscar([1.0, 0.0], contexto="rrhh||auto|{}") == eventos  # el exacto sí
+    replay = cache.buscar([1.0, 0.0], contexto="rrhh||auto|{}")
+    assert replay is not None  # el exacto sí
+    assert replay[0]["evento"] == "done"
+    assert replay[0]["datos"]["content"] == "de rrhh"
+    assert replay[0]["datos"]["trace"] is None
+    assert replay[0]["datos"]["metrics"] is None
     assert cache.hits == 1
 
 
@@ -112,7 +120,14 @@ def test_chat_repite_pregunta_desde_cache(entorno_cache):
 
     llamadas_llm_antes = len(llm.peticiones)
     segunda = _parsear_sse(client.post("/chat", headers=CLAVE, json=body).text)
-    assert segunda == primera
+    # mismo contenido; la traza y las métricas no se replayan (pertenecen al turno original)
+    assert [e["evento"] for e in segunda] == [e["evento"] for e in primera]
+    assert [e for e in segunda if e["evento"] == "token"] == [e for e in primera if e["evento"] == "token"]
+    done_segunda = next(e for e in segunda if e["evento"] == "done")
+    done_primera = next(e for e in primera if e["evento"] == "done")
+    assert done_segunda["datos"]["content"] == done_primera["datos"]["content"]
+    assert done_segunda["datos"]["trace"] is None
+    assert done_segunda["datos"]["metrics"] is None
     assert len(llm.peticiones) == llamadas_llm_antes          # el LLM no se volvió a invocar
     assert contenedor.cache.hits == 1
     # la pregunta cacheada costó un embed extra en el lookup

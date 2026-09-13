@@ -64,7 +64,19 @@ class CacheSemantico:
         """Almacena la secuencia de eventos de un turno; expulsa la más antigua si excede el límite."""
         if not eventos or any(e.get("evento") == "error" for e in eventos):
             return  # nunca se cachean errores
-        self._entradas.append(_Entrada(vector=list(vector), contexto=contexto, eventos=[dict(e) for e in eventos]))
+        # la traza y las métricas pertenecen al turno original (duraciones, modelo):
+        # replayarlas confundiría al inspector, así que se guardan a null
+        # (los progress/agent/tokens se conservan: el replay debe ser idéntico al turno)
+        saneados = []
+        for evento in eventos:
+            copia = dict(evento)
+            if copia.get("evento") == "done" and isinstance(copia.get("datos"), dict):
+                datos = dict(copia["datos"])
+                datos["trace"] = None
+                datos["metrics"] = None
+                copia["datos"] = datos
+            saneados.append(copia)
+        self._entradas.append(_Entrada(vector=list(vector), contexto=contexto, eventos=saneados))
         if len(self._entradas) > self.max_entradas:
             self._entradas.pop(0)
 

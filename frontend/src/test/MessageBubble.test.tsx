@@ -127,13 +127,13 @@ describe("MessageBubble", () => {
       expect(screen.queryByRole("button", { name: /Copiar respuesta/ })).not.toBeInTheDocument();
     });
 
-    it("al copiar muestra feedback Copiado ✓ temporalmente", async () => {
+    it("al copiar muestra feedback Copiado temporalmente", async () => {
       const mensaje: MensajeChat = { id: "m7", rol: "assistant", contenido: "Texto a copiar", pendiente: false };
       render(<MessageBubble mensaje={mensaje} />);
       fireEvent.click(screen.getByRole("button", { name: /Copiar respuesta/ }));
-      expect(await screen.findByText("✓ Copiado")).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Copiado" })).toBeInTheDocument();
       await act(async () => { await new Promise((r) => setTimeout(r, 2100)); });
-      expect(screen.queryByText("✓ Copiado")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Copiado" })).not.toBeInTheDocument();
     });
 
     it("al escuchar muestra Detener y usa el id del mensaje", () => {

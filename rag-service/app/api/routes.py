@@ -241,6 +241,20 @@ def crear_router(contenedor) -> APIRouter:
     @router.post("/chat")
     async def chat(request: ChatRequest, X_Internal_Key: str | None = Header(default=None)) -> StreamingResponse:
         _verificar_clave(X_Internal_Key)
+        # la validación va ANTES del StreamingResponse: dentro del generador un 400
+        # llegaría como evento "error" con un 200 ya comprometido
+        if request.razonamiento not in {"off", "low", "medium", "high"}:
+            raise HTTPException(status_code=400, detail="El nivel de razonamiento no es válido.")
+        if request.modelo:
+            proveedor, separador, nombre_modelo = request.modelo.partition(":")
+            if (
+                not separador
+                or proveedor not in {"groq", "ollama"}
+                or not nombre_modelo
+                or "," in nombre_modelo
+                or "\n" in nombre_modelo
+            ):
+                raise HTTPException(status_code=400, detail="El modelo seleccionado no es válido.")
 
         async def flujo():
             inicio = time.perf_counter()
@@ -252,19 +266,9 @@ def crear_router(contenedor) -> APIRouter:
                 usar_agentic = settings.enable_agentic_mode and modo in ("auto", "agentic")
                 ajustes = ajustes_con_perfil(settings, request.perfil)
                 ajustes = ajustes_con_overrides(ajustes, request.overrides_retrieval)
-                if request.razonamiento not in {"off", "low", "medium", "high"}:
-                    raise HTTPException(status_code=400, detail="El nivel de razonamiento no es válido.")
                 ajustes = ajustes.model_copy(update={"razonamiento": request.razonamiento})
                 if request.modelo:
-                    proveedor, separador, nombre_modelo = request.modelo.partition(":")
-                    if (
-                        not separador
-                        or proveedor not in {"groq", "ollama"}
-                        or not nombre_modelo
-                        or "," in nombre_modelo
-                        or "\n" in nombre_modelo
-                    ):
-                        raise HTTPException(status_code=400, detail="El modelo seleccionado no es válido.")
+                    proveedor, _, nombre_modelo = request.modelo.partition(":")
                     seleccion = (proveedor, nombre_modelo)
                     cadena_base = ajustes.chain("generation")
                     cadena = [seleccion, *(paso for paso in cadena_base if paso != seleccion)]
@@ -300,6 +304,7 @@ def crear_router(contenedor) -> APIRouter:
                         [t.model_dump() for t in request.history],
                         request.dominios,
                         request.document_ids,
+                        embedding_pregunta=vector_pregunta,
                     )
                 else:
                     generador = pipeline_fijo(
@@ -310,6 +315,7 @@ def crear_router(contenedor) -> APIRouter:
                         [t.model_dump() for t in request.history],
                         request.dominios,
                         request.document_ids,
+                        embedding_pregunta=vector_pregunta,
                     )
 
                 vistos: list[dict] = []

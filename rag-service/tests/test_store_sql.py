@@ -6,6 +6,7 @@ desde $2 o asyncpg intenta encajar un vector donde va un array (CannotCoerceErro
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from app.retrieval.store import PostgresRagStore, _vector_literal
@@ -15,6 +16,11 @@ class _ConexionFalsa:
     def __init__(self) -> None:
         self.sql = ""
         self.args: tuple[Any, ...] = ()
+        self.sets: list[str] = []
+
+    async def execute(self, sql: str, *args: Any):
+        self.sets.append(sql)
+        return "SET"
 
     async def fetch(self, sql: str, *args: Any):
         self.sql, self.args = sql, args
@@ -52,6 +58,12 @@ async def test_busqueda_vector_numera_embedding_como_1_y_filtros_desde_2():
     assert "LIMIT $3" in sql
     # el embedding viaja como literal de texto, no como lista cruda
     assert pool.conexion.args == (_vector_literal(embedding), ["rrhh"], 6)
+
+
+def test_busqueda_vector_ajusta_ef_search():
+    store, pool = _store_con_pool_falso()
+    asyncio.run(store.busqueda_vector([0.1] * 8, None, None, 6))
+    assert pool.conexion.sets == ["SET hnsw.ef_search = 100"]
 
 
 async def test_busqueda_vector_sin_filtros_solo_embedding_y_k():

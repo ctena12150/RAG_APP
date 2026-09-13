@@ -38,9 +38,19 @@ CREATE TABLE IF NOT EXISTS app.conversaciones (
     titulo_automatico   boolean      NOT NULL DEFAULT true,
     dominios_json       jsonb,
     documentos_ids_json jsonb,
+    usuario_id          varchar(320),
     creado_utc          timestamptz  NOT NULL DEFAULT now(),
     actualizado_utc     timestamptz  NOT NULL DEFAULT now()
 );
+
+-- migraciones para bases creadas con versiones anteriores del script (bases nuevas
+-- ya traen las columnas). Van ANTES de los índices que las usan para que el archivo
+-- sea re-ejecutable de principio a fin en una base vieja.
+ALTER TABLE app.conversaciones ADD COLUMN IF NOT EXISTS usuario_id varchar(320);
+ALTER TABLE app.usuarios ADD COLUMN IF NOT EXISTS rol varchar(20) NOT NULL DEFAULT 'usuario';
+ALTER TABLE app.usuarios ADD COLUMN IF NOT EXISTS dominios text[] NOT NULL DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS ix_conversaciones_usuario ON app.conversaciones(usuario_id, actualizado_utc DESC);
 
 CREATE TABLE IF NOT EXISTS app.mensajes (
     id                 uuid PRIMARY KEY,
@@ -80,12 +90,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_permitidos_dominio ON app.usuarios
 
 -- Credenciales locales de acceso al chat (login usuario/contraseña). La contraseña viaja
 -- siempre como hash BCrypt (password_hash); el nombre de usuario es único e ignorará mayúsculas.
+-- El rol (usuario|teamleader|superusuario) controla subida de documentos y administración.
 CREATE TABLE IF NOT EXISTS app.usuarios (
     id            uuid PRIMARY KEY,
     usuario       varchar(100) NOT NULL,
     password_hash varchar(255) NOT NULL,
     email         varchar(320),
     nombre        varchar(200),
+    rol           varchar(20)  NOT NULL DEFAULT 'usuario',
+    dominios      text[]       NOT NULL DEFAULT '{}',
     activo        boolean      NOT NULL DEFAULT true,
     creado_utc    timestamptz  NOT NULL DEFAULT now()
 );

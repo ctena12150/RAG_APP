@@ -30,11 +30,6 @@ _INSTRUCCION_INYECCION = (
 )
 
 
-def estimar_tokens(texto: str) -> int:
-    """Estimación ligera para proveedores que no incluyen usage en streaming."""
-    return max(1, len(texto.split())) if texto.strip() else 0
-
-
 def construir_prompt_generacion(
     pregunta: str,
     historial: list[dict],
@@ -90,7 +85,9 @@ def limpiar_citas_invalidas(texto_respuesta: str, total_fuentes: int) -> str:
         idx = int(m.group(1)) - 1
         return m.group(0) if 0 <= idx < total_fuentes else ""
 
-    return _CITA_RE.sub(_reemplazo, texto_respuesta).replace("  ", " ").strip()
+    limpio = _CITA_RE.sub(_reemplazo, texto_respuesta)
+    limpio = re.sub(r"[ \t]{2,}", " ", limpio)
+    return re.sub(r" (?=\.(?!\.))", "", limpio).strip()
 
 
 def construir_tarjetas(hits: list[Hit], usadas: set[int]) -> list[FuenteCard]:

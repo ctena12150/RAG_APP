@@ -12,5 +12,8 @@
       ],
       "enabled": true
     }
-  }
+  },
+  "plugin": [
+    "./ponytail/.opencode/plugins/ponytail.mjs"
+  ]
 }

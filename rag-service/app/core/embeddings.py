@@ -31,7 +31,7 @@ class EmbeddingsClient:
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
             http2=True,  # HTTP/2 multiplexa requests en una sola conexión
         )
-    
+
     async def close(self) -> None:
         await self._client.aclose()
 
@@ -73,21 +73,21 @@ class EmbeddingsClient:
         ultimo_error: Exception | None = None
         for intento in range(reintentos):
             try:
-                async with httpx.AsyncClient(timeout=60) as client:
-                    resp = await client.post(
-                        url + "/embeddings",
-                        headers=headers,
-                        json={"model": modelo, "input": lote},
-                    )
-                    if resp.status_code == 429:
-                        espera = min(2**intento * 0.5, 8)
-                        logger.warning("429 de embeddings; reintentando en %.1fs", espera)
-                        await asyncio.sleep(espera)
-                        continue
-                    resp.raise_for_status()
-                    data = resp.json()
-                    ordenados = sorted(data["data"], key=lambda d: d.get("index", 0))
-                    return [item["embedding"] for item in ordenados]
+                # cliente compartido: reutiliza conexiones; se mantiene el backoff ante 429
+                resp = await self._client.post(
+                    url + "/embeddings",
+                    headers=headers,
+                    json={"model": modelo, "input": lote},
+                )
+                if resp.status_code == 429:
+                    espera = min(2**intento * 0.5, 8)
+                    logger.warning("429 de embeddings; reintentando en %.1fs", espera)
+                    await asyncio.sleep(espera)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                ordenados = sorted(data["data"], key=lambda d: d.get("index", 0))
+                return [item["embedding"] for item in ordenados]
             except Exception as exc:  # noqa: BLE001 — reintento con backoff; error final controlado abajo
                 ultimo_error = exc
                 logger.warning("Intento %d/%d de embeddings falló (%s)", intento + 1, reintentos, type(exc).__name__)

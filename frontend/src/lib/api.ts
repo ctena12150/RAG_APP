@@ -1,4 +1,4 @@
-import type { Conversacion, Documento, Dominio, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, TrazaPipeline, Verificacion } from "./types";
+import type { Conversacion, Documento, Dominio, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -75,6 +75,7 @@ export const api = {
       };
       xhr.onerror = () => reject(new Error("No se pudo conectar con el servidor."));
       xhr.onload = () => {
+        if (xhr.status === 401) notificarNoAutorizado();
         const cuerpo = xhr.response as { error?: { message?: string } } | null;
         if (xhr.status >= 200 && xhr.status < 300 && cuerpo && typeof cuerpo === "object" && "id" in cuerpo) {
           resolve(cuerpo as unknown as Documento);
@@ -122,14 +123,6 @@ export const api = {
     return request<void>(`/api/folders/${id}`, { method: "DELETE" });
   },
 
-  moverDocumentoAFolder(id: string, folderId: string | null): Promise<Documento> {
-    return request<Documento>(`/api/documents/${id}/folder`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folderId }),
-    });
-  },
-
   crearConversacion(dominios?: Dominio[]): Promise<Conversacion> {
     return request<Conversacion>("/api/conversations", {
       method: "POST",
@@ -161,10 +154,6 @@ export const api = {
     });
   },
 
-  health(): Promise<{ ragService: { disponible: boolean }; documentosListos: number }> {
-    return request("/api/health");
-  },
-
   listarModelos(): Promise<ModeloDisponible[]> {
     return request<{ modelos: ModeloDisponible[] }>("/api/models").then((respuesta) => respuesta.modelos);
   },
@@ -187,6 +176,64 @@ export const api = {
   cerrarSesion(): void {
     window.location.assign(`${BASE}/auth/signout`);
   },
+
+  // --- administración de usuarios (solo superusuario) ---
+  listarUsuarios(): Promise<UsuarioAdmin[]> {
+    return request<UsuarioAdmin[]>("/api/usuarios");
+  },
+  crearUsuario(datos: {
+    usuario: string;
+    contrasena: string;
+    rol: Rol;
+    email?: string | null;
+    nombre?: string | null;
+    dominios?: Dominio[] | null;
+  }): Promise<UsuarioAdmin> {
+    return request<UsuarioAdmin>("/api/usuarios", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datos),
+    });
+  },
+  actualizarUsuario(id: string, cambios: {
+    rol?: Rol;
+    activo?: boolean;
+    email?: string | null;
+    nombre?: string | null;
+    contrasena?: string;
+    dominios?: Dominio[] | null;
+  }): Promise<UsuarioAdmin> {
+    return request<UsuarioAdmin>(`/api/usuarios/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cambios),
+    });
+  },
+  borrarUsuario(id: string): Promise<void> {
+    return request<void>(`/api/usuarios/${id}`, { method: "DELETE" });
+  },
+
+  // --- lista blanca de acceso Google (solo superusuario) ---
+  listarPermitidos(): Promise<UsuarioPermitido[]> {
+    return request<UsuarioPermitido[]>("/api/usuarios-permitidos");
+  },
+  crearPermitido(datos: { email?: string | null; dominio?: string | null }): Promise<UsuarioPermitido> {
+    return request<UsuarioPermitido>("/api/usuarios-permitidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datos),
+    });
+  },
+  actualizarPermitido(id: string, cambios: { activo?: boolean }): Promise<UsuarioPermitido> {
+    return request<UsuarioPermitido>(`/api/usuarios-permitidos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cambios),
+    });
+  },
+  borrarPermitido(id: string): Promise<void> {
+    return request<void>(`/api/usuarios-permitidos/${id}`, { method: "DELETE" });
+  },
 };
 
 export interface ProgresoAgente {
@@ -204,7 +251,7 @@ export interface SseHandlers {
   onProgress?(progreso: { etapa: string; texto: string }): void;
   onToken?(texto: string): void;
   onDone?(datos: { messageId: string; content: string; sources: MensajeChat["fuentes"]; trace: unknown; metrics?: MetricasGeneracion }): void;
-  onVerified?(datos: Record<string, unknown>): void;
+  onVerified?(datos: { verdict: string; critique?: string; revision?: string }): void;
   onRevisionAvailable?(datos: { revision: string; critique?: string }): void;
   onError?(error: { code: string; message: string }): void;
 }

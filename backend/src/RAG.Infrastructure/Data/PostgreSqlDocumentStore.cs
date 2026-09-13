@@ -30,7 +30,14 @@ public sealed class PostgreSqlDocumentStore(IDbConnectionFactory factory) : IDoc
             VALUES (@Id, @NombreArchivo, @Dominio, @FolderId, @TamanoBytes, @ContentHash, @Estado, @ErrorMensaje, @TotalPaginas, @CreadoUtc, @ProcesadoUtc)
             """;
         await using var conn = await factory.OpenAsync(ct);
-        await conn.ExecuteAsync(new CommandDefinition(sql, d, cancellationToken: ct));
+        try
+        {
+            await conn.ExecuteAsync(new CommandDefinition(sql, d, cancellationToken: ct));
+        }
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == "23505")
+        {
+            throw new DocumentoDuplicadoException($"Contenido duplicado (hash {d.ContentHash}).");
+        }
         return d;
     }
 
@@ -66,7 +73,7 @@ public sealed class PostgreSqlDocumentStore(IDbConnectionFactory factory) : IDoc
         if (rows == 0) throw new KeyNotFoundException($"Documento {id} no existe.");
     }
 
-    public async Task<IReadOnlyList<Document>> ListAsync(string? dominio = null, Guid? folderId = null, string? nombreContiene = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Document>> ListAsync(string? dominio = null, Guid? folderId = null, string? nombreContiene = null, int? limite = null, CancellationToken ct = default)
     {
         var sql = new StringBuilder(SelectDocument + " WHERE 1=1");
         var parameters = new Dictionary<string, object?>();
@@ -78,6 +85,7 @@ public sealed class PostgreSqlDocumentStore(IDbConnectionFactory factory) : IDoc
             parameters["nombre"] = $"%{nombreContiene}%";
         }
         sql.Append(" ORDER BY creado_utc DESC");
+        if (limite is { } n && n > 0) { sql.Append(" LIMIT @limite"); parameters["limite"] = n; }
 
         await using var conn = await factory.OpenAsync(ct);
         var rows = await conn.QueryAsync<Document>(new CommandDefinition(sql.ToString(), parameters, cancellationToken: ct));
@@ -90,6 +98,28 @@ public sealed class PostgreSqlDocumentStore(IDbConnectionFactory factory) : IDoc
         await using var conn = await factory.OpenAsync(ct);
         var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { id, folderId }, cancellationToken: ct));
         if (rows == 0) throw new KeyNotFoundException($"Documento {id} no existe.");
+    }
+
+    public async Task UnassignFolderAsync(Guid folderId, CancellationToken ct = default)
+    {
+        const string sql = "UPDATE app.documentos SET folder_id = NULL WHERE folder_id = @folderId";
+        await using var conn = await factory.OpenAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition(sql, new { folderId }, cancellationToken: ct));
+    }
+
+    public async Task<bool> HayListosAsync(CancellationToken ct = default)
+    {
+        const string sql = "SELECT EXISTS(SELECT 1 FROM app.documentos WHERE estado = 2)";
+        await using var conn = await factory.OpenAsync(ct);
+        return await conn.ExecuteScalarAsync<bool>(new CommandDefinition(sql, cancellationToken: ct));
+    }
+
+    public async Task<(int Listos, int Totales)> ContarAsync(CancellationToken ct = default)
+    {
+        const string sql = "SELECT COUNT(*) FILTER (WHERE estado = 2), COUNT(*) FROM app.documentos";
+        await using var conn = await factory.OpenAsync(ct);
+        var fila = await conn.QuerySingleAsync<(int Listos, int Totales)>(new CommandDefinition(sql, cancellationToken: ct));
+        return fila;
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)

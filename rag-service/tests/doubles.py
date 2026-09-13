@@ -37,10 +37,15 @@ class EmbeddingsFalsos:
 
     def __init__(self) -> None:
         self.llamadas = 0
+        self.veces = 0
 
     async def embed(self, textos):
         self.llamadas += len(textos)
+        self.veces += 1
         return [self._vector(t) for t in textos]
+
+    async def close(self) -> None:
+        return None
 
     @staticmethod
     def _vector(texto: str, dim: int = 64) -> list[float]:
@@ -72,6 +77,9 @@ class LlmFalso:
         for palabra in texto.split(" "):
             yield palabra + " "
             await __import__("asyncio").sleep(0)
+
+    async def close(self) -> None:
+        return None
 
 
 def contenedor_prueba(**overrides) -> tuple[Contenedor, EmbeddingsFalsos, LlmFalso, MemoryRagStore]:

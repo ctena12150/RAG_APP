@@ -78,7 +78,7 @@ export type NivelRazonamiento = "off" | "low" | "medium" | "high";
 
 export type Verificacion =
   | { verdict: "supported" }
-  | { verdict: "unsupported"; critique?: string }
+  | { verdict: "unsupported"; critique?: string; revision?: string }
   | { verdict: "error" };
 
 export interface MensajeChat {
@@ -105,11 +105,24 @@ export interface Conversacion {
 
 export type ProveedorLogin = "google" | "local";
 
+export type Rol = "usuario" | "teamleader" | "superusuario";
+
+export const ROLES: Rol[] = ["usuario", "teamleader", "superusuario"];
+
+export const ETIQUETA_ROL: Record<Rol, string> = {
+  usuario: "Usuario",
+  teamleader: "Team Leader",
+  superusuario: "Superusuario",
+};
+
 export interface EstadoAuth {
   autenticado: boolean;
   email: string | null;
   nombre: string | null;
   proveedor: string | null;
+  rol: Rol | null;
+  /** Dominios gestionables (teamleader). Null = sin restricción (superusuario o todos). */
+  dominios: Dominio[] | null;
   proveedores: ProveedorLogin[];
 }
 
@@ -117,4 +130,27 @@ export interface Usuario {
   email: string;
   nombre?: string | null;
   proveedor?: string | null;
+  rol?: Rol | null;
+  dominios?: Dominio[] | null;
+}
+
+/** Entrada de la lista blanca de acceso Google: email exacto o dominio (nunca ambos). */
+export interface UsuarioPermitido {
+  id: string;
+  email?: string | null;
+  dominio?: string | null;
+  activo: boolean;
+  creadoUtc: string;
+}
+
+/** Usuario local gestionado por el superusuario (formulario de administración). */
+export interface UsuarioAdmin {
+  id: string;
+  usuario: string;
+  email?: string | null;
+  nombre?: string | null;
+  rol: Rol;
+  dominios: Dominio[];
+  activo: boolean;
+  creadoUtc: string;
 }

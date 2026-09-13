@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useApp } from "../state/AppContext";
-import { DOMINIOS, ETIQUETA_DOMINIO, type Documento } from "../lib/types";
+import { DOMINIOS, ETIQUETA_DOMINIO, type Documento, type Dominio } from "../lib/types";
 
 type Pestana = "conversaciones" | "documentos";
 
@@ -16,6 +16,9 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
     subirDocumento,
     subidaActiva,
     errorSubida,
+    puedeGestionarDocumentos,
+    puedeGestionarDominio,
+    dominiosGestionables,
     conversaciones,
     conversacionActiva,
     abrirConversacion,
@@ -30,12 +33,32 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
   const inputCarpeta = useRef<HTMLInputElement>(null);
   const inputArchivo = useRef<HTMLInputElement>(null);
 
+  // sin permiso de documentos, el usuario solo ve su historial de chat
+  const pestanas: Pestana[] = puedeGestionarDocumentos ? ["conversaciones", "documentos"] : ["conversaciones"];
+
+  useEffect(() => {
+    if (!puedeGestionarDocumentos && pestana === "documentos") setPestana("conversaciones");
+  }, [puedeGestionarDocumentos, pestana]);
+
+  // teamleader acotado: solo ve sus dominios, sin la pill "Todas"
+  // (?? null: los mocks de tests antiguos no traen la prop y equivalen a acceso total)
+  const gestionables: Dominio[] | null = dominiosGestionables ?? null;
+  const dominiosVisibles: (Dominio | "todas")[] =
+    gestionables === null ? [...DOMINIOS, "todas" as const] : gestionables;
+
+  useEffect(() => {
+    if (gestionables !== null && !gestionables.includes(dominioActivo as Dominio)) {
+      setDominioActivo(gestionables[0] ?? "rrhh");
+    }
+  }, [gestionables, dominioActivo, setDominioActivo]);
+
   const docsDelDominio = useMemo(
     () =>
       documentos
+        .filter((d) => gestionables === null || gestionables.includes(d.dominio))
         .filter((d) => dominioActivo === "todas" || d.dominio === dominioActivo)
         .filter((d) => d.nombreArchivo.toLowerCase().includes(filtroDoc.toLowerCase())),
-    [documentos, dominioActivo, filtroDoc],
+    [documentos, dominioActivo, filtroDoc, gestionables],
   );
 
   const convsFiltradas = useMemo(
@@ -46,7 +69,9 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
     [conversaciones, filtroConv],
   );
 
-  const carpetas = folders.filter((f) => dominioActivo === "todas" || f.dominio === dominioActivo);
+  const carpetas = folders
+    .filter((f) => gestionables === null || gestionables.includes(f.dominio))
+    .filter((f) => dominioActivo === "todas" || f.dominio === dominioActivo);
   const sinCarpeta = (docs: Documento[]) => docs.filter((d) => !d.folderId);
 
   return (
@@ -58,7 +83,7 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
       </div>
 
       <div className="flex" style={{ borderBottom: "1px solid var(--line)" }}>
-        {(["conversaciones", "documentos"] as Pestana[]).map((p) => (
+        {pestanas.map((p) => (
           <button
             key={p}
             onClick={() => setPestana(p)}
@@ -135,7 +160,7 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {/* pestañas de dominios */}
           <div className="mb-3 flex flex-wrap gap-1">
-            {[...DOMINIOS, "todas" as const].map((d) => (
+            {dominiosVisibles.map((d) => (
               <button
                 key={d}
                 onClick={() => setDominioActivo(d)}
@@ -165,15 +190,17 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
           <div className="mb-3 flex gap-2">
             <button
               onClick={() => inputArchivo.current?.click()}
-              disabled={dominioActivo === "todas"}
+              disabled={dominioActivo === "todas" || !puedeGestionarDominio(dominioActivo)}
+              title={!puedeGestionarDominio(dominioActivo) ? "Sin acceso de gestión a este dominio" : undefined}
               className="btn-accent-a flex-1 rounded-md py-1.5 font-semibold disabled:opacity-40"
             >
               ↑ Subir documento
             </button>
             <button
               onClick={() => setNuevaCarpetaVisible(true)}
-              title="Nueva carpeta"
-              className="rounded-md px-2.5"
+              disabled={dominioActivo !== "todas" && !puedeGestionarDominio(dominioActivo)}
+              title={dominioActivo !== "todas" && !puedeGestionarDominio(dominioActivo) ? "Sin acceso de gestión a este dominio" : "Nueva carpeta"}
+              className="rounded-md px-2.5 disabled:opacity-40"
               style={{ border: "1px solid var(--line)" }}
             >
               🗀+
@@ -262,15 +289,17 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
               <div key={f.id} className="mb-2">
                 <div className="group flex items-center justify-between px-1 py-1 text-xs">
                   <span className="theme-ink-soft">🗀 {f.nombre} ({docsCarpeta.length})</span>
-                  <button
-                    aria-label={`Borrar carpeta ${f.nombre}`}
-                    className="opacity-0 group-hover:opacity-100"
-                    style={{ color: "var(--accent-b)" }}
-                    onClick={() => void borrarFolder(f.id)}
-                    title="Los documentos pasan a 'sin categoría', nunca se borran"
-                  >
-                    ✕
-                  </button>
+                  {puedeGestionarDominio(f.dominio) && (
+                    <button
+                      aria-label={`Borrar carpeta ${f.nombre}`}
+                      className="opacity-0 group-hover:opacity-100"
+                      style={{ color: "var(--accent-b)" }}
+                      onClick={() => void borrarFolder(f.id)}
+                      title="Los documentos pasan a 'sin categoría', nunca se borran"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
                 <ListaDocumentos documentos={docsCarpeta} />
               </div>
@@ -292,7 +321,7 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
 }
 
 function ListaDocumentos({ documentos }: { documentos: Documento[] }) {
-  const { borrarDocumento, docResaltado } = useApp();
+  const { borrarDocumento, docResaltado, puedeGestionarDominio } = useApp();
 
   return (
     <ul className="space-y-0.5">
@@ -301,7 +330,7 @@ function ListaDocumentos({ documentos }: { documentos: Documento[] }) {
         return (
           <li
             key={d.id}
-            className={`group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-black/5${
+            className={`group fila-hover flex items-center gap-2 rounded-md px-2 py-1.5${
               resaltado ? " fila-flash" : ""
             }`}
             style={
@@ -329,14 +358,16 @@ function ListaDocumentos({ documentos }: { documentos: Documento[] }) {
                 error
               </span>
             )}
-            <button
-              aria-label={`Borrar ${d.nombreArchivo}`}
-              className="ml-auto shrink-0 opacity-0 group-hover:opacity-100"
-              style={{ color: "var(--accent-b)" }}
-              onClick={() => void borrarDocumento(d.id)}
-            >
-              ✕
-            </button>
+            {puedeGestionarDominio(d.dominio) && (
+              <button
+                aria-label={`Borrar ${d.nombreArchivo}`}
+                className="ml-auto shrink-0 opacity-0 group-hover:opacity-100"
+                style={{ color: "var(--accent-b)" }}
+                onClick={() => void borrarDocumento(d.id)}
+              >
+                ✕
+              </button>
+            )}
           </li>
         );
       })}

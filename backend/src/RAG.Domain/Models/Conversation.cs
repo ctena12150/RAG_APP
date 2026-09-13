@@ -7,6 +7,12 @@ public sealed class Conversation
     public bool TituloAutomatico { get; set; }
     public IReadOnlyList<string> Dominios { get; set; } = [];
     public IReadOnlyList<Guid>? DocumentosIds { get; set; }
+
+    /// <summary>
+    /// Dueño de la conversación (identidad normalizada de la sesión: email o usuario local).
+    /// Null cuando la autenticación está desactivada (historial compartido).
+    /// </summary>
+    public string? UsuarioId { get; set; }
     public DateTime CreadoUtc { get; set; }
     public DateTime ActualizadoUtc { get; set; }
 }

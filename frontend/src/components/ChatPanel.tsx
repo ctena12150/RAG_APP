@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Mic, Square } from "lucide-react";
 import { useApp } from "../state/AppContext";
 import MessageBubble from "./MessageBubble";
 import { api } from "../lib/api";
 import { useDictado, soportaDictado } from "../lib/voz";
-import type { ModeloDisponible, NivelRazonamiento } from "../lib/types";
+import { DOMINIOS, ETIQUETA_DOMINIO, type Dominio, type ModeloDisponible, type NivelRazonamiento } from "../lib/types";
 
 /** Panel central de chat: mensajes, composer y estado vacío con forma de onda. */
 export default function ChatPanel() {
@@ -18,22 +19,45 @@ export default function ChatPanel() {
   const [perfilRapido, setPerfilRapido] = useState(
     () => localStorage.getItem("rag-perfil") === "fast",
   );
+  const [dominiosChat, setDominiosChat] = useState<Dominio[]>(() => {
+    try {
+      const guardados = JSON.parse(localStorage.getItem("rag-dominios-chat") ?? "[]") as string[];
+      return guardados.filter((d): d is Dominio => (DOMINIOS as string[]).includes(d));
+    } catch {
+      return [];
+    }
+  });
+
+  const alternarDominioChat = (d: Dominio | "todas") => {
+    setDominiosChat((prev) => {
+      const siguiente = d === "todas" ? [] : prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d];
+      localStorage.setItem("rag-dominios-chat", JSON.stringify(siguiente));
+      return siguiente;
+    });
+  };
+  const listaRef = useRef<HTMLDivElement>(null);
   const finRef = useRef<HTMLDivElement>(null);
   const { grabando, error: errorDictado, iniciar, detener } = useDictado({
     onTranscribir: (t) => { setTexto((prev) => prev + " " + t); },
   });
 
+  // auto-scroll solo si el usuario ya está cerca del fondo: no secuestra la lectura;
+  // "auto" durante el streaming (un smooth por token compite consigo mismo)
   useEffect(() => {
-    finRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chat.mensajes.length, chat.mensajes[chat.mensajes.length - 1]?.contenido]);
+    const lista = listaRef.current;
+    if (!lista) return;
+    const cercaDelFondo = lista.scrollHeight - lista.scrollTop - lista.clientHeight < 160;
+    if (cercaDelFondo) finRef.current?.scrollIntoView({ behavior: chat.enviando ? "auto" : "smooth" });
+  }, [chat.mensajes.length, chat.mensajes[chat.mensajes.length - 1]?.contenido, chat.enviando]);
 
   useEffect(() => {
+    const modeloActual = localStorage.getItem("rag-modelo") ?? "";
     void api.listarModelos().then((disponibles) => {
       const seleccionables = disponibles.filter((m) => m.seleccionable);
       setModelos(seleccionables);
-      if (modelo && !seleccionables.some((m) => `${m.proveedor}:${m.modelo}` === modelo)) setModelo("");
+      if (modeloActual && !seleccionables.some((m) => `${m.proveedor}:${m.modelo}` === modeloActual)) setModelo("");
     }).catch(() => setModelos([]));
-  }, [modelo]);
+  }, []);
 
   const hayDocumentos = documentos.some((d) => d.estado === "listo");
 
@@ -41,7 +65,7 @@ export default function ChatPanel() {
     const pregunta = texto.trim();
     if (!pregunta || chat.enviando) return;
     setTexto("");
-    await preguntar(pregunta, modelo || undefined, razonamiento, perfilRapido ? "fast" : "normal");
+    await preguntar(pregunta, modelo || undefined, razonamiento, perfilRapido ? "fast" : "normal", dominiosChat);
   };
 
   return (
@@ -125,7 +149,7 @@ export default function ChatPanel() {
           </button>
         )}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
+      <div ref={listaRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
         <div className="mx-auto max-w-3xl space-y-5">
           {chat.mensajes.length === 0 && <EstadoVacio conDocumentos={hayDocumentos} />}
           <AnimatePresence initial={false}>
@@ -184,6 +208,34 @@ export default function ChatPanel() {
       </div>
 
       <div className="px-4 pb-5 pt-1 md:px-8">
+        <div
+          className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label="Ámbito de búsqueda del agente"
+        >
+          <span className="text-[11px]" style={{ color: "var(--ink-soft)" }}>
+            Buscar en:
+          </span>
+          {(["todas" as const, ...DOMINIOS] as const).map((d) => {
+            const activo = d === "todas" ? dominiosChat.length === 0 : dominiosChat.includes(d);
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => alternarDominioChat(d)}
+                aria-pressed={activo}
+                className="rounded-full px-2.5 py-1 text-[11px]"
+                style={{
+                  border: `1px solid ${activo ? "var(--accent-a)" : "var(--line)"}`,
+                  color: activo ? "var(--accent-a)" : "var(--ink-soft)",
+                  background: activo ? "color-mix(in oklab, var(--accent-a) 10%, transparent)" : undefined,
+                }}
+              >
+                {d === "todas" ? "Todas" : ETIQUETA_DOMINIO[d]}
+              </button>
+            );
+          })}
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -196,25 +248,6 @@ export default function ChatPanel() {
             style={{ background: "var(--bg-elev)", border: "1px solid var(--line)" }}
           >
             {chat.enviando && <OndaActiva />}
-            {soportaDictado() && (
-              <button
-                type="button"
-                aria-label={grabando ? "Detener dictado" : "Dictar por voz"}
-                title={grabando ? "Detener dictado" : "Dictar por voz"}
-                onClick={grabando ? detener : iniciar}
-                className={`btn-micro ${grabando ? "grabado" : ""}`}
-              >
-                {grabando ? (
-                  <span className="flex items-center gap-0.5" aria-hidden>
-                    <span className="wave-bar inline-block h-2.5 w-0.5 rounded-full" style={{ background: "var(--accent-b)", animationDelay: "0s" }} />
-                    <span className="wave-bar inline-block h-2.5 w-0.5 rounded-full" style={{ background: "var(--accent-b)", animationDelay: "0.12s" }} />
-                    <span className="wave-bar inline-block h-2.5 w-0.5 rounded-full" style={{ background: "var(--accent-b)", animationDelay: "0.24s" }} />
-                  </span>
-                ) : (
-                  "🎙"
-                )}
-              </button>
-            )}
             <textarea
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
@@ -232,6 +265,17 @@ export default function ChatPanel() {
               style={{ color: "var(--ink)" }}
               data-testid="composer"
             />
+            {soportaDictado() && (
+              <button
+                type="button"
+                aria-label={grabando ? "Detener dictado" : "Dictar por voz"}
+                title={grabando ? "Detener dictado" : "Dictar por voz"}
+                onClick={grabando ? detener : iniciar}
+                className={`btn-micro ${grabando ? "grabado" : ""}`}
+              >
+                {grabando ? <Square size={14} /> : <Mic size={16} />}
+              </button>
+            )}
           </div>
           <button
             type={chat.enviando ? "button" : "submit"}

@@ -11,11 +11,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from functools import lru_cache
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
@@ -35,7 +37,7 @@ ETIQUETAS_DOMINIO = {
 }
 
 
-def _modelo_planificador(settings: Settings) -> ChatOpenAI:
+def _parametros_planificador(settings: Settings) -> tuple[str, str, str, int]:
     proveedor, modelo = settings.chain("planner")[0]
     base_urls = {
         "groq": (settings.groq_base_url, settings.groq_api_key),
@@ -43,14 +45,24 @@ def _modelo_planificador(settings: Settings) -> ChatOpenAI:
         "ollama": (settings.ollama_base_url, ""),
     }
     url, key = base_urls.get(proveedor, base_urls["ollama"])
+    return modelo, key or "EMPTY", url, settings.llm_timeout_seconds
+
+
+@lru_cache(maxsize=4)
+def _modelo_planificador_cacheado(modelo: str, api_key: str, url: str, timeout: int) -> ChatOpenAI:
+    """Un planner por configuración: evita reconstruir el cliente HTTP en cada petición."""
     kwargs: dict = {
         "model": modelo,
-        "api_key": key or "EMPTY",
+        "api_key": api_key,
         "base_url": url,
         # sin timeout un proveedor colgado deja el chat en silencio indefinidamente
-        "timeout": settings.llm_timeout_seconds,
+        "timeout": timeout,
     }
     return ChatOpenAI(**kwargs)
+
+
+def _modelo_planificador(settings: Settings) -> ChatOpenAI:
+    return _modelo_planificador_cacheado(*_parametros_planificador(settings))
 
 
 @dataclass
@@ -82,6 +94,7 @@ def crear_herramientas(
                     dominios=[dominio_fijo],
                     documentos_ids=documentos_ids,
                     con_reescritura=False,
+                    con_rerank=settings.enable_rerank_herramientas,
                 )
                 duracion = int((time.perf_counter() - inicio) * 1000)
                 if not contexto.hits:
@@ -115,8 +128,15 @@ def crear_herramientas(
     @tool
     async def listar_documentos() -> str:
         "Lista los documentos disponibles con sus metadatos (nombre, dominio, páginas)."
+        try:
+            metadatos = await engine.metadatos_documentos()
+        except Exception as exc:  # noqa: BLE001 — el planner ya tiene los metadatos en el prompt
+            return json.dumps({"nota": "Metadatos no disponibles.", "error": str(exc)[:120]})
         return json.dumps(
-            {"nota": "Usa esta lista para decidir a qué agente preguntar; no contiene contenido."},
+            {
+                "nota": "Usa esta lista para decidir a qué agente preguntar; no contiene contenido.",
+                "documentos": metadatos,
+            },
             ensure_ascii=False,
         )
 
@@ -142,25 +162,6 @@ Reglas:
 5. Máximo {max_steps} rondas de herramientas.
 
 Cuando termines de reunir información, responde brevemente qué información reuniste (sin responder la pregunta)."""
-
-
-async def ejecutar_director(
-    settings: Settings,
-    engine: RetrievalEngine,
-    llm_utilidad: LlmClient,
-    pregunta: str,
-    historial: list[dict],
-    dominios: list[str] | None,
-    documentos_ids: list[str] | None,
-    traza: Traza,
-) -> ResultadoAgentic:
-    """Wrapper compatible: consume el generador y devuelve solo el resultado final."""
-    async for item in ejecutar_director_stream(
-        settings, engine, llm_utilidad, pregunta, historial, dominios, documentos_ids, traza
-    ):
-        if isinstance(item, ResultadoAgentic):
-            return item
-    raise RuntimeError("el director terminó sin resultado")
 
 
 async def ejecutar_director_stream(
@@ -211,14 +212,22 @@ async def ejecutar_director_stream(
         if not respuesta.tool_calls:
             break
         pasos += 1
+        # las herramientas son independientes entre sí: se ejecutan en paralelo y los
+        # eventos SSE conservan el orden de la planificación
         for llamada in respuesta.tool_calls:
             nombre = llamada["name"]
             args = llamada.get("args") or {}
             yield {"etapa": "buscando", "agente": nombre, "query": str(args.get("query", ""))[:80]}
-            entrada = time.perf_counter()
-            resultado_tool = await _ejecutar_herramienta(herramientas, nombre, args)
-            duracion = int((time.perf_counter() - entrada) * 1000)
+        entrada = time.perf_counter()
+        resultados_tool = await asyncio.gather(*(
+            _ejecutar_herramienta(herramientas, llamada["name"], llamada.get("args") or {})
+            for llamada in respuesta.tool_calls
+        ))
+        duracion = int((time.perf_counter() - entrada) * 1000)
 
+        for llamada, resultado_tool in zip(respuesta.tool_calls, resultados_tool):
+            nombre = llamada["name"]
+            args = llamada.get("args") or {}
             datos = json.loads(resultado_tool or "{}")
             pasajes = datos.get("pasajes", []) if isinstance(datos, dict) else []
             if isinstance(datos, dict) and isinstance(datos.get("confianza"), (int, float)):

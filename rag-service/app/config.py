@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     rag_store: str = "postgres"
     database_dsn: str = "postgresql://postgres:postgres@localhost:5432/ragapp"
     embedding_dim: int = 1024  # bge-m3=1024 (Ollama) | text-embedding-004=768 (Google)
+    # candidatos que HNSW evalúa por búsqueda (filtros restrictivos + valor bajo = rescates)
+    hnsw_ef_search: int = 100
 
     # --- embeddings ---
     embeddings_chain: str = "ollama:bge-m3"  # alternativa cloud gratuita: google:text-embedding-004
@@ -43,10 +45,16 @@ class Settings(BaseSettings):
     enable_hybrid_search: bool = True
     enable_query_rewrite: bool = True
     enable_query_expansion: bool = True
+    # reescritura+expansión en UNA sola llamada LLM (menos latencia y coste);
+    # False = dos llamadas seriales como antes
+    enable_consulta_fusionada: bool = True
     query_expansion_count: int = 2
     enable_deduplication: bool = True
     dedup_similarity_threshold: float = 0.75
     enable_reranking: bool = True
+    # rerank LLM en las búsquedas internas del Director (coste N× por turno agéntico);
+    # False = las herramientas devuelven el orden RRF directo
+    enable_rerank_herramientas: bool = False
     enable_adaptive_topk: bool = True
     adaptive_topk_bonus: int = 4
     retrieval_top_k: int = 6
@@ -57,9 +65,8 @@ class Settings(BaseSettings):
 
     # --- agéntico ---
     agentic_max_steps: int = 3
-    enable_agentic_research_on_revision: bool = False
 
-    background_verification_timeout_ms: int = 20000
+    background_verification_timeout_ms: int = 8000
 
     # --- caché semántica de consultas (solo primera pregunta, historial vacío) ---
     enable_cache_consultas: bool = True
@@ -77,7 +84,10 @@ class Settings(BaseSettings):
     guardrail_exigir_citas: bool = True      # con fuentes disponibles, la respuesta debe citar al menos una
 
     # --- seguridad ---
-    internal_api_key: str = "dev-internal-key"
+    # vacío = sin exigir clave interna (dev local). En despliegues con postgres la
+    # clave es obligatoria: main falla al arrancar si no se define (defensa contra
+    # quedarse con la clave de ejemplo en producción).
+    internal_api_key: str = ""
 
     def chain(self, name: str) -> list[tuple[str, str]]:
         raw = {

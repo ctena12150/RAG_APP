@@ -20,9 +20,9 @@ from app.generation.generate import (
     limpiar_citas_invalidas,
 )
 from app.models import Hit, Traza
+from app.pipeline.comun import abstencion_por_umbral, datos_done
 from app.pipeline.fixed import Sse
 from app.pipeline.verificacion import (
-    _abstencion_por_umbral,
     _verificacion_y_revision,
     evaluar_guardrails_salida,
 )
@@ -40,6 +40,7 @@ async def pipeline_agentic(
     historial: list[dict],
     dominios: list[str] | None,
     documentos_ids: list[str] | None,
+    embedding_pregunta: list[float] | None = None,
 ) -> AsyncIterator[dict]:
     traza = Traza(modo="agentico") if settings.enable_pipeline_trace else None
 
@@ -67,41 +68,39 @@ async def pipeline_agentic(
         logger.warning("Planificación agéntica falló (%s); fallback a pipeline fijo", exc)
         if traza:
             traza.agregar("fallback_pipeline_fijo", motivo=str(exc)[:120])
-        contexto = await engine.run_retrieval(pregunta, historial, dominios, documentos_ids, traza)
+        contexto = await engine.run_retrieval(
+            pregunta, historial, dominios, documentos_ids, traza,
+            embedding_pregunta=embedding_pregunta,
+        )
         async for evento in _fase_respuesta(
-            settings, engine, llm, pregunta, historial, dominios, documentos_ids,
-            traza, contexto.hits, contexto.confianza, False,
+            settings, llm, pregunta, historial,
+            traza, contexto.hits, contexto.confianza,
         ):
             yield evento
         return
 
     # sin búsqueda decidida por el director (saludo/charla): responder sin fuentes documentales
     async for evento in _fase_respuesta(
-        settings, engine, llm, pregunta, historial, dominios, documentos_ids,
+        settings, llm, pregunta, historial,
         traza, resultado.hits, resultado.confianza,
-        settings.enable_agentic_research_on_revision,
     ):
         yield evento
 
 
 async def _fase_respuesta(
     settings: Settings,
-    engine: RetrievalEngine,
     llm: LlmClient,
     pregunta: str,
     historial: list[dict],
-    dominios: list[str] | None,
-    documentos_ids: list[str] | None,
     traza: Traza | None,
     fuentes: list[Hit],
     confianza: float | None,
-    permitir_busqueda_extra: bool,
 ) -> AsyncIterator[dict]:
-    modelo_solicitado = settings.chain("generation")[0] if settings.chain("generation") else (None, None)
+    inicio_respuesta = time.perf_counter()
 
     # --- guardrail de umbral (solo si hay confianza calculada; fuentes vacías pasan: saludo) ---
     if fuentes:
-        abstencion = _abstencion_por_umbral(settings, confianza, traza)
+        abstencion = abstencion_por_umbral(settings, confianza, traza)
         if abstencion is not None:
             yield Sse.evento("done", abstencion)
             return
@@ -109,7 +108,6 @@ async def _fase_respuesta(
     hint = format_hint(pregunta) if settings.enable_format_hints else None
     mensajes = construir_prompt_generacion(pregunta, historial, fuentes, hint)
 
-    inicio_total = time.perf_counter()
     inicio = time.perf_counter()
     yield Sse.evento("progress", {"etapa": "generacion", "texto": "Generando respuesta…"})
     partes: list[str] = []
@@ -126,23 +124,7 @@ async def _fase_respuesta(
 
     yield Sse.evento(
         "done",
-        {
-            "content": contenido_limpio,
-            "sources": [t.to_dict() for t in tarjetas],
-            "trace": traza.to_dict() if traza else None,
-            "metrics": {
-                "tokens": max(1, len(contenido.split())) if contenido else 0,
-                "tokensEstimados": True,
-                "generacionMs": int((time.perf_counter() - inicio) * 1000),
-                "totalMs": int((time.perf_counter() - inicio_total) * 1000),
-                "modelo": getattr(llm, "ultimo_modelo", None),
-                "proveedor": getattr(llm, "ultimo_proveedor", None),
-                "fallback": getattr(llm, "ultimo_fallback", False),
-                "modeloSolicitado": modelo_solicitado[1],
-                "proveedorSolicitado": modelo_solicitado[0],
-                "razonamiento": settings.razonamiento,
-            },
-        },
+        datos_done(settings, llm, contenido, contenido_limpio, tarjetas, traza, inicio, inicio_respuesta),
     )
 
     if not settings.enable_self_verification or not fuentes:
@@ -153,13 +135,5 @@ async def _fase_respuesta(
     async for evento in _verificacion_y_revision(
         settings, llm, pregunta, historial, fuentes, contenido_limpio, traza, hint,
         evaluacion_previa=evaluacion,
-        permitir_busqueda_extra=permitir_busqueda_extra,
-        engine=engine,
-        dominios=dominios,
-        documentos_ids=documentos_ids,
     ):
         yield evento
-
-
-# reexport para compatibilidad con imports existentes en tests
-__all__ = ["pipeline_agentic"]

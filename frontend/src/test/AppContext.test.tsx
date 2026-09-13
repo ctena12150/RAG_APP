@@ -63,4 +63,28 @@ describe("AppContext: errores del stream", () => {
     expect(screen.getByTestId("cantidad-mensajes")).toHaveTextContent("1");
     expect(apiMock.mensajesDe).not.toHaveBeenCalled();
   });
+
+  it("un fallo de red antes del primer evento se convierte en error visible (sin rejection)", async () => {
+    apiMock.crearConversacion.mockResolvedValue({
+      id: "conv-1",
+      titulo: "Nueva conversación",
+      tituloAutomatico: true,
+      dominios: [],
+      creadoUtc: "2026-01-01T00:00:00Z",
+    });
+    apiMock.mensajesDe.mockResolvedValue([]);
+    streamChatMock.mockRejectedValue(new Error("caído"));
+
+    render(
+      <AppProvider>
+        <TestChat />
+      </AppProvider>,
+    );
+
+    await act(async () => {
+      screen.getByRole("button", { name: "preguntar" }).click();
+    });
+
+    expect(screen.getByText("caído")).toBeInTheDocument();
+  });
 });

@@ -8,16 +8,14 @@ La búsqueda keyword usa el índice full-text nativo configurado en español.
 from __future__ import annotations
 
 import logging
-import re
+import uuid
 from typing import Any
 
 import asyncpg
 
-from app.models import Chunk, Hit
+from app.models import NOMBRE_ESTADO, Chunk, Hit
 
 logger = logging.getLogger(__name__)
-
-_TOKEN_RE = re.compile(r"[\s,.;:!?()\"']+")
 
 
 def _vector_literal(embedding: list[float]) -> str:
@@ -25,9 +23,10 @@ def _vector_literal(embedding: list[float]) -> str:
 
 
 class PostgresRagStore:
-    def __init__(self, dsn: str, dim: int) -> None:
+    def __init__(self, dsn: str, dim: int, ef_search: int = 100) -> None:
         self._dsn = dsn
         self._dim = dim
+        self._ef_search = max(ef_search, 0)
         self._pool: asyncpg.Pool | None = None
 
     async def conectar(self) -> None:
@@ -74,26 +73,21 @@ class PostgresRagStore:
         embeddings: list[list[float]],
     ) -> list[str]:
         assert self._pool is not None
-        ids: list[str] = []
+        # UUIDs en cliente + un solo executemany: N round-trips → 1
+        ids = [str(uuid.uuid4()) for _ in chunks]
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 await conn.execute("DELETE FROM rag.chunks WHERE documento_id = $1", documento_id)
-                for chunk, embedding in zip(chunks, embeddings):
-                    fila = await conn.fetchrow(
-                        """
-                        INSERT INTO rag.chunks (documento_id, dominio, indice, texto, pagina, seccion, embedding)
-                        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::vector)
-                        RETURNING id
-                        """,
-                        documento_id,
-                        dominio,
-                        chunk.indice,
-                        chunk.texto,
-                        chunk.pagina,
-                        chunk.seccion,
-                        _vector_literal(embedding),
-                    )
-                    ids.append(str(fila["id"]))
+                await conn.executemany(
+                    """
+                    INSERT INTO rag.chunks (id, documento_id, dominio, indice, texto, pagina, seccion, embedding)
+                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::vector)
+                    """,
+                    [
+                        (gid, documento_id, dominio, chunk.indice, chunk.texto, chunk.pagina, chunk.seccion, _vector_literal(emb))
+                        for gid, chunk, emb in zip(ids, chunks, embeddings)
+                    ],
+                )
         return ids
 
     async def borrar_documento(self, documento_id: str) -> None:
@@ -143,6 +137,9 @@ class PostgresRagStore:
             LIMIT ${len(params)}
             """
         async with self._pool.acquire() as conn:
+            if self._ef_search:
+                # a nivel de sesión en la conexión del pool: evita rescates con filtros restrictivos
+                await conn.execute(f"SET hnsw.ef_search = {self._ef_search}")
             filas = await conn.fetch(sql, *params)
         return [self._hit(fila) for fila in filas]
 
@@ -200,7 +197,7 @@ class PostgresRagStore:
                 FROM app.documentos d ORDER BY d.creado_utc
                 """
             )
-        estados = {0: "pendiente", 1: "procesando", 2: "listo", 3: "error"}
+        estados = NOMBRE_ESTADO
         return [
             {
                 "id": f["id"],

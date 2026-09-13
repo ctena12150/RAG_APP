@@ -57,7 +57,9 @@ def eliminar_duplicados(hits: list[Hit], umbral: float = 0.75) -> tuple[list[Hit
     conservados: list[Hit] = []
     eliminados = 0
     for hit in hits:
-        duplicado = any(solape_jaccard(hit.texto, c.texto) >= umbral for c in conservados)
+        # ponytail: solo el arranque del texto (500 chars); el solape real vive ahí
+        muestra = hit.texto[:500]
+        duplicado = any(solape_jaccard(muestra, c.texto[:500]) >= umbral for c in conservados)
         if duplicado:
             eliminados += 1
             continue

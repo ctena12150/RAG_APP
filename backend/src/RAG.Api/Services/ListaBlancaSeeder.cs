@@ -7,7 +7,8 @@ namespace RAG.Api.Services;
 /// <summary>
 /// Siembra inicial de la lista blanca desde configuración (Auth:WhitelistEmails /
 /// Auth:WhitelistDomains, separados por coma). Idempotente: no duplica entradas ya
-/// existentes. Después del arranque la lista se administra por SQL en app.usuarios_permitidos.
+/// existentes. Después del arranque la lista se administra desde los endpoints
+/// de UsuariosPermitidosEndpoints (pestaña «Lista blanca Google» del panel, solo superusuario).
 /// </summary>
 public static class ListaBlancaSeeder
 {

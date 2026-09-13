@@ -5,10 +5,13 @@ import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
 import SourcesPanel from "./components/SourcesPanel";
 import CommandPalette from "./components/CommandPalette";
+import AdminUsuarios from "./components/AdminUsuarios";
+import { ETIQUETA_ROL, type Rol } from "./lib/types";
 
 function Shell() {
-  const { vista, tema, alternarTema, usuario, cerrarSesion } = useApp();
+  const { vista, tema, alternarTema, usuario, cerrarSesion, esSuperUsuario } = useApp();
   const [paletteAbierta, setPaletteAbierta] = useState(false);
+  const [adminAbierta, setAdminAbierta] = useState(false);
   const [drawerMovil, setDrawerMovil] = useState(false);
 
   useEffect(() => {
@@ -42,7 +45,7 @@ function Shell() {
         <Sidebar onNavegar={() => setDrawerMovil(false)} />
       </aside>
       {drawerMovil && (
-        <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setDrawerMovil(false)} />
+        <div className="fixed inset-0 z-20 md:hidden" style={{ background: "var(--overlay)" }} onClick={() => setDrawerMovil(false)} />
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
@@ -67,6 +70,23 @@ function Shell() {
                 >
                   {usuario.nombre ?? usuario.email}
                 </span>
+                {usuario.rol && (
+                  <span
+                    className="rounded-full border px-2 py-0.5 text-[10px] tracking-wide uppercase"
+                    style={{ borderColor: "var(--line)", color: "var(--accent-a)" }}
+                  >
+                    {ETIQUETA_ROL[usuario.rol as Rol]}
+                  </span>
+                )}
+                {esSuperUsuario && (
+                  <button
+                    onClick={() => setAdminAbierta(true)}
+                    className="rounded-md px-2 py-1 text-xs cursor-pointer"
+                    style={{ border: "1px solid var(--line)", color: "var(--accent-a)" }}
+                  >
+                    Usuarios
+                  </button>
+                )}
                 <button
                   onClick={cerrarSesion}
                   className="rounded-md px-2 py-1 text-xs cursor-pointer"
@@ -97,6 +117,7 @@ function Shell() {
       </main>
 
       {paletteAbierta && <CommandPalette cerrar={() => setPaletteAbierta(false)} />}
+      {adminAbierta && <AdminUsuarios onClose={() => setAdminAbierta(false)} />}
     </div>
   );
 }

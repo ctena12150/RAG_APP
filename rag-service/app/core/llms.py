@@ -74,15 +74,16 @@ class LlmClient:
                 if response_json:
                     payload["response_format"] = {"type": "json_object"}
                 self._ajustes_razonamiento(payload, proveedor, modelo, reasoning or self._settings.razonamiento)
-                async with httpx.AsyncClient(timeout=self._settings.llm_timeout_seconds) as client:
-                    resp = await client.post(url, headers=headers, json=payload)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    contenido = data["choices"][0]["message"].get("content") or ""
-                    if not contenido.strip():
-                        raise RuntimeError("el proveedor devolvió una respuesta vacía")
-                    self._marcar_modelo(proveedor, modelo, indice)
-                    return contenido
+                # cliente compartido: reutiliza conexiones (HTTP/2 + keep-alive) en vez de
+                # abrir TCP+TLS por llamada
+                resp = await self._client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                contenido = data["choices"][0]["message"].get("content") or ""
+                if not contenido.strip():
+                    raise RuntimeError("el proveedor devolvió una respuesta vacía")
+                self._marcar_modelo(proveedor, modelo, indice)
+                return contenido
             except Exception as exc:  # noqa: BLE001 — cualquier fallo pasa al siguiente eslabón
                 ultimo_error = exc
                 logger.warning("Fallo %s:%s (%s); probando siguiente eslabón", proveedor, modelo, type(exc).__name__)
@@ -112,25 +113,24 @@ class LlmClient:
                 if max_tokens:
                     payload["max_tokens"] = max_tokens
                 self._ajustes_razonamiento(payload, proveedor, modelo, reasoning or self._settings.razonamiento)
-                async with httpx.AsyncClient(timeout=self._settings.llm_timeout_seconds) as client:
-                    async with client.stream("POST", url, headers=headers, json=payload) as resp:
-                        resp.raise_for_status()
-                        async for linea in resp.aiter_lines():
-                            if not linea.startswith("data:"):
-                                continue
-                            datos = linea[5:].strip()
-                            if datos == "[DONE]":
-                                break
-                            trozo = json.loads(datos)
-                            delta = trozo.get("choices", [{}])[0].get("delta", {})
-                            contenido = delta.get("content")
-                            if contenido:
-                                produjo_contenido = True
-                                yield contenido
-                        if not produjo_contenido:
-                            raise RuntimeError("el proveedor devolvió una respuesta vacía")
-                        self._marcar_modelo(proveedor, modelo, indice)
-                        return
+                async with self._client.stream("POST", url, headers=headers, json=payload) as resp:
+                    resp.raise_for_status()
+                    async for linea in resp.aiter_lines():
+                        if not linea.startswith("data:"):
+                            continue
+                        datos = linea[5:].strip()
+                        if datos == "[DONE]":
+                            break
+                        trozo = json.loads(datos)
+                        delta = trozo.get("choices", [{}])[0].get("delta", {})
+                        contenido = delta.get("content")
+                        if contenido:
+                            produjo_contenido = True
+                            yield contenido
+                    if not produjo_contenido:
+                        raise RuntimeError("el proveedor devolvió una respuesta vacía")
+                    self._marcar_modelo(proveedor, modelo, indice)
+                    return
             except Exception as exc:  # noqa: BLE001
                 ultimo_error = exc
                 logger.warning("Fallo streaming %s:%s (%s)", proveedor, modelo, type(exc).__name__)

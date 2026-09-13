@@ -10,7 +10,12 @@ public sealed class InMemoryDocumentStore : IDocumentStore
 
     public Task<Document> CreateAsync(Document document, CancellationToken ct = default)
     {
-        lock (_lock) _documents[document.Id] = Clone(document);
+        lock (_lock)
+        {
+            if (_documents.Values.Any(d => d.ContentHash == document.ContentHash))
+                throw new DocumentoDuplicadoException($"Contenido duplicado (hash {document.ContentHash}).");
+            _documents[document.Id] = Clone(document);
+        }
         return Task.FromResult(Clone(document));
     }
 
@@ -44,7 +49,7 @@ public sealed class InMemoryDocumentStore : IDocumentStore
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<Document>> ListAsync(string? dominio = null, Guid? folderId = null, string? nombreContiene = null, CancellationToken ct = default)
+    public Task<IReadOnlyList<Document>> ListAsync(string? dominio = null, Guid? folderId = null, string? nombreContiene = null, int? limite = null, CancellationToken ct = default)
     {
         lock (_lock)
         {
@@ -53,7 +58,9 @@ public sealed class InMemoryDocumentStore : IDocumentStore
             if (folderId.HasValue) query = query.Where(d => d.FolderId == folderId.Value);
             if (!string.IsNullOrWhiteSpace(nombreContiene))
                 query = query.Where(d => d.NombreArchivo.Contains(nombreContiene, StringComparison.OrdinalIgnoreCase));
-            var result = query.OrderByDescending(d => d.CreadoUtc).Select(Clone).ToList();
+            query = query.OrderByDescending(d => d.CreadoUtc);
+            if (limite is { } n && n > 0) query = query.Take(n);
+            var result = query.Select(Clone).ToList();
             return Task.FromResult<IReadOnlyList<Document>>(result);
         }
     }
@@ -66,6 +73,30 @@ public sealed class InMemoryDocumentStore : IDocumentStore
             doc.FolderId = folderId;
         }
         return Task.CompletedTask;
+    }
+
+    public Task UnassignFolderAsync(Guid folderId, CancellationToken ct = default)
+    {
+        lock (_lock)
+        {
+            foreach (var doc in _documents.Values.Where(d => d.FolderId == folderId))
+                doc.FolderId = null;
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> HayListosAsync(CancellationToken ct = default)
+    {
+        lock (_lock) return Task.FromResult(_documents.Values.Any(d => d.Estado == DocumentStatus.Listo));
+    }
+
+    public Task<(int Listos, int Totales)> ContarAsync(CancellationToken ct = default)
+    {
+        lock (_lock)
+        {
+            var listos = _documents.Values.Count(d => d.Estado == DocumentStatus.Listo);
+            return Task.FromResult((listos, _documents.Count));
+        }
     }
 
     public Task DeleteAsync(Guid id, CancellationToken ct = default)

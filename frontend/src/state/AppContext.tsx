@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from "react";
 import { api, describirAgente, streamChat } from "../lib/api";
 import type { PerfilChat } from "../lib/api";
-import type { Conversacion, Dominio, Documento, Folder, Fuente, MensajeChat, MetricasGeneracion, TrazaPipeline, Usuario, Verificacion } from "../lib/types";
+import type { Conversacion, Dominio, Documento, Folder, Fuente, MensajeChat, MetricasGeneracion, Rol, TrazaPipeline, Usuario, UsuarioAdmin, UsuarioPermitido, Verificacion } from "../lib/types";
 
 interface EstadoChat {
   mensajes: MensajeChat[];
@@ -40,6 +40,43 @@ interface AppContextValue {
   iniciarSesionLocal: (usuario: string, contrasena: string) => Promise<void>;
   cerrarSesion: () => void;
 
+  /** El usuario autenticado puede subir/gestionar documentos (dev sin auth = siempre true). */
+  puedeGestionarDocumentos: boolean;
+  esSuperUsuario: boolean;
+
+  /**
+   * Dominios que el usuario puede gestionar. Null = todos (sin auth, superusuario
+   * o teamleader sin restricción). Lista = solo esos dominios.
+   */
+  dominiosGestionables: Dominio[] | null;
+  puedeGestionarDominio: (d: Dominio | "todas") => boolean;
+
+  // administración de usuarios locales (solo superusuario)
+  listarUsuarios: () => Promise<UsuarioAdmin[]>;
+  crearUsuario: (datos: {
+    usuario: string;
+    contrasena: string;
+    rol: Rol;
+    email?: string | null;
+    nombre?: string | null;
+    dominios?: Dominio[] | null;
+  }) => Promise<UsuarioAdmin>;
+  actualizarUsuario: (id: string, cambios: {
+    rol?: Rol;
+    activo?: boolean;
+    email?: string | null;
+    nombre?: string | null;
+    contrasena?: string;
+    dominios?: Dominio[] | null;
+  }) => Promise<UsuarioAdmin>;
+  borrarUsuario: (id: string) => Promise<void>;
+
+  // lista blanca de acceso Google (solo superusuario)
+  listarPermitidos: () => Promise<UsuarioPermitido[]>;
+  crearPermitido: (datos: { email?: string | null; dominio?: string | null }) => Promise<UsuarioPermitido>;
+  actualizarPermitido: (id: string, cambios: { activo?: boolean }) => Promise<UsuarioPermitido>;
+  borrarPermitido: (id: string) => Promise<void>;
+
   dominioActivo: Dominio | "todas";
   setDominioActivo: (d: Dominio | "todas") => void;
 
@@ -64,7 +101,7 @@ interface AppContextValue {
   abrirConversacion: (id: string) => Promise<void>;
   nuevaConversacion: () => Promise<void>;
   borrarConversacion: (id: string) => Promise<void>;
-  preguntar: (texto: string, modelo?: string, razonamiento?: string, perfil?: PerfilChat) => Promise<void>;
+  preguntar: (texto: string, modelo?: string, razonamiento?: string, perfil?: PerfilChat, dominios?: Dominio[]) => Promise<void>;
   detenerGeneracion: () => void;
   aceptarRevision: (messageId: string) => Promise<void>;
 }
@@ -101,6 +138,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [errorSubida, setErrorSubida] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const detenidoRef = useRef(false);
+  // id de la conversación visible (ref para comparar en callbacks async sin cierres rancios)
+  const convActivaRef = useRef<string | null>(null);
+  const aperturaRef = useRef(0);
 
   const detenerGeneracion = useCallback(() => {
     if (!abortRef.current) return;
@@ -137,7 +177,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!activo) return;
         setProveedoresDisponibles(estado.proveedores);
         if (estado.autenticado && estado.email) {
-          setUsuario({ email: estado.email, nombre: estado.nombre, proveedor: estado.proveedor });
+          setUsuario({ email: estado.email, nombre: estado.nombre, proveedor: estado.proveedor, rol: estado.rol, dominios: estado.dominios });
         } else {
           setUsuario(null);
           if (estado.proveedores.length > 0) setVista("landing");
@@ -169,10 +209,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const estado = await api.iniciarSesionLocal(usuario, contrasena);
     setProveedoresDisponibles(estado.proveedores);
     if (estado.autenticado && estado.email) {
-      setUsuario({ email: estado.email, nombre: estado.nombre, proveedor: estado.proveedor });
+      setUsuario({ email: estado.email, nombre: estado.nombre, proveedor: estado.proveedor, rol: estado.rol, dominios: estado.dominios });
     }
   }, []);
   const cerrarSesion = useCallback(() => api.cerrarSesion(), []);
+
+  const listarUsuarios = useCallback(() => api.listarUsuarios(), []);
+  const crearUsuario = useCallback((datos: Parameters<typeof api.crearUsuario>[0]) => api.crearUsuario(datos), []);
+  const actualizarUsuario = useCallback(
+    (id: string, cambios: Parameters<typeof api.actualizarUsuario>[1]) => api.actualizarUsuario(id, cambios),
+    [],
+  );
+  const borrarUsuario = useCallback((id: string) => api.borrarUsuario(id), []);
+
+  const listarPermitidos = useCallback(() => api.listarPermitidos(), []);
+  const crearPermitido = useCallback(
+    (datos: Parameters<typeof api.crearPermitido>[0]) => api.crearPermitido(datos),
+    [],
+  );
+  const actualizarPermitido = useCallback(
+    (id: string, cambios: Parameters<typeof api.actualizarPermitido>[1]) => api.actualizarPermitido(id, cambios),
+    [],
+  );
+  const borrarPermitido = useCallback((id: string) => api.borrarPermitido(id), []);
+
+  // sin proveedores configurados = modo dev sin auth: acceso completo (como hoy)
+  const puedeGestionarDocumentos =
+    proveedoresDisponibles.length === 0 || usuario?.rol === "teamleader" || usuario?.rol === "superusuario";
+  const esSuperUsuario = usuario?.rol === "superusuario";
+
+  // null = todos los dominios (dev sin auth, superusuario o teamleader sin restricción)
+  const dominiosGestionables: Dominio[] | null =
+    proveedoresDisponibles.length === 0 || usuario?.rol === "superusuario" || !usuario?.dominios
+      ? null
+      : usuario.dominios;
+  const puedeGestionarDominio = useCallback(
+    (d: Dominio | "todas") =>
+      !puedeGestionarDocumentos ? false : dominiosGestionables === null || d === "todas" ? true : dominiosGestionables.includes(d),
+    [puedeGestionarDocumentos, dominiosGestionables],
+  );
 
   const refrescarDocumentos = useCallback(async () => {
     try {
@@ -275,14 +350,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const abrirConversacion = useCallback(async (id: string) => {
-    const conv = await api.listarConversaciones().then((cs) => cs.find((c) => c.id === id) ?? null);
+    const turno = ++aperturaRef.current;
+    const conv = conversaciones.find((c) => c.id === id) ?? null;
     const mensajes = await api.mensajesDe(id);
+    if (turno !== aperturaRef.current) return;
+    convActivaRef.current = id;
     setConversacionActiva(conv);
     setChat({ mensajes, enviando: false, error: null, actividad: [], metricas: null });
     setFuentesSeleccionadas(null);
-  }, []);
+  }, [conversaciones]);
 
   const nuevaConversacion = useCallback(async () => {
+    aperturaRef.current++;
+    convActivaRef.current = null;
     setConversacionActiva(null);
     setChat({ mensajes: [], enviando: false, error: null, actividad: [], metricas: null });
     setFuentesSeleccionadas(null);
@@ -298,11 +378,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const preguntar = useCallback(
-    async (texto: string, modelo?: string, razonamiento?: string, perfil: PerfilChat = "normal") => {
+    async (texto: string, modelo?: string, razonamiento?: string, perfil: PerfilChat = "normal", dominios?: Dominio[]) => {
       detenidoRef.current = false;
       let convId = conversacionActiva?.id ?? null;
       if (!convId) {
-        const creada = await api.crearConversacion(dominioActivo === "todas" ? [] : [dominioActivo]);
+        const creada = await api.crearConversacion(
+          dominios && dominios.length > 0 ? dominios : dominioActivo === "todas" ? [] : [dominioActivo]);
         convId = creada.id;
         setConversacionActiva(creada);
       }
@@ -319,7 +400,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }));
 
       abortRef.current?.abort();
-      abortRef.current = new AbortController();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      convActivaRef.current = convId;
 
       const actualizarBorrador = (fn: (m: MensajeChat) => MensajeChat) =>
         setChat((c) => ({
@@ -332,7 +415,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         await streamChat(
           `/api/conversations/${convId}/messages`,
-          { pregunta: texto, modelo, razonamiento, perfil },
+          { pregunta: texto, modelo, razonamiento, perfil, dominios: dominios && dominios.length > 0 ? dominios : undefined },
           {
             onAgent(progreso) {
               const paso = describirAgente(progreso);
@@ -357,11 +440,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
               }));
             },
             onVerified(datos) {
-              const verificacion = datos as unknown as Verificacion & { revision?: string };
+              const verificacion: Verificacion =
+                datos.verdict === "supported"
+                  ? { verdict: "supported" }
+                  : datos.verdict === "error"
+                    ? { verdict: "error" }
+                    : { verdict: "unsupported", critique: datos.critique, revision: datos.revision };
               actualizarBorrador((m) => ({
                 ...m,
-                verificacion: { verdict: verificacion.verdict, critique: (verificacion as any).critique },
-                revisionContenido: verificacion.revision ?? m.revisionContenido,
+                verificacion,
+                revisionContenido: datos.revision ?? m.revisionContenido,
               }));
             },
             onRevisionAvailable(datos) {
@@ -378,19 +466,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
               }));
             },
           },
-          abortRef.current.signal,
+          controller.signal,
         );
       } catch (error) {
         if (detenidoRef.current || (error instanceof DOMException && error.name === "AbortError")) return;
-        throw error;
+        // fallo de red antes del primer evento: streamChat nunca llamó onError
+        if (abortRef.current === controller && !respuestaCompletada) {
+          streamFinalizadoConError = true;
+          const mensaje = error instanceof Error ? error.message : "Error de conexión.";
+          setChat((c) => ({
+            ...c,
+            error: mensaje,
+            actividad: [],
+            mensajes: c.mensajes.filter((m) => m.id !== borrador.id),
+          }));
+        }
+        return;
       } finally {
+        // el stream abortado/detenido no toca el estado del stream vigente
+        if (abortRef.current !== controller) return;
         setChat((c) => ({ ...c, enviando: false }));
         void refrescarConversaciones();
         // Una respuesta fallida no se persiste en el backend. No recargarla aquí
         // para no borrar el mensaje temporal y el error que acaba de mostrar la UI.
-        if (!detenidoRef.current && !streamFinalizadoConError) {
+        // Y si el usuario ya cambió de conversación, no pisar la vista nueva.
+        if (!detenidoRef.current && !streamFinalizadoConError && convActivaRef.current === convId) {
           const mensajes = await api.mensajesDe(convId).catch(() => null);
-          if (mensajes) setChat((c) => ({ ...c, mensajes }));
+          if (mensajes && abortRef.current === controller && convActivaRef.current === convId)
+            setChat((c) => ({ ...c, mensajes }));
         }
       }
     },
@@ -427,6 +530,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       iniciarSesion,
       iniciarSesionLocal,
       cerrarSesion,
+      puedeGestionarDocumentos,
+      esSuperUsuario,
+      dominiosGestionables,
+      puedeGestionarDominio,
+      listarUsuarios,
+      crearUsuario,
+      actualizarUsuario,
+      borrarUsuario,
+      listarPermitidos,
+      crearPermitido,
+      actualizarPermitido,
+      borrarPermitido,
       dominioActivo,
       setDominioActivo,
       documentos,
@@ -454,7 +569,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }),
     [
       vista, entrarApp, tema, alternarTema, usuario, proveedoresDisponibles, authCargando,
-      iniciarSesion, iniciarSesionLocal, cerrarSesion, dominioActivo, documentos, folders, refrescarDocumentos,
+      iniciarSesion, iniciarSesionLocal, cerrarSesion, puedeGestionarDocumentos, esSuperUsuario,
+      dominiosGestionables, puedeGestionarDominio,
+      listarUsuarios, crearUsuario, actualizarUsuario, borrarUsuario,
+      listarPermitidos, crearPermitido, actualizarPermitido, borrarPermitido,
+      dominioActivo, documentos, folders, refrescarDocumentos,
       subirDocumento, borrarDocumento, crearFolder, borrarFolder, subidaActiva, docResaltado,
       errorSubida, conversaciones, conversacionActiva,
       chat, fuentesSeleccionadas, refrescarConversaciones, abrirConversacion, nuevaConversacion,

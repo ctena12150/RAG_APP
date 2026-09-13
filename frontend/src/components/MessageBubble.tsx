@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Check, Copy, Square, Volume2 } from "lucide-react";
 import { useApp } from "../state/AppContext";
 import { dividirPorCitas } from "../lib/api";
 import {
@@ -15,7 +16,7 @@ import type { Fuente, MensajeChat, TrazaPipeline } from "../lib/types";
 const MermaidDiagrama = lazy(() => import("./MermaidDiagrama"));
 
 /** Burbuja de mensaje: markdown con sellos de cita, banner de verificación y acceso a la traza. */
-export default function MessageBubble({ mensaje }: { mensaje: MensajeChat }) {
+function MessageBubble({ mensaje }: { mensaje: MensajeChat }) {
   const esUsuario = mensaje.rol === "user";
 
   return (
@@ -81,8 +82,17 @@ function BotonEstadisticas({ metricas }: { metricas: NonNullable<MensajeChat["me
   );
 }
 
+// memo: el padre re-renderiza por cada token SSE; los mensajes estables conservan
+// su referencia y no se repintan (solo el borrador en curso cambia de identidad)
+export default memo(MessageBubble);
+
 function RespuestaAsistente({ mensaje }: { mensaje: MensajeChat }) {
-  const partes = dividirPorCitas(mensaje.contenido);
+  const contenido = mensaje.contenido;
+  const partes = useMemo(() => dividirPorCitas(contenido), [contenido]);
+  const citas = useMemo(
+    () => [...new Set(partes.filter((p) => p.tipo === "cita").map((p) => p.valor))],
+    [partes],
+  );
   const fuentes = mensaje.fuentes ?? [];
 
   if (mensaje.pendiente && !mensaje.contenido) return <OndaEscritura />;
@@ -93,9 +103,9 @@ function RespuestaAsistente({ mensaje }: { mensaje: MensajeChat }) {
         {mensaje.contenido}</ReactMarkdown></div>
 
       {/* sellos de cita interactivos (todas las citas presentes en el texto) */}
-      {[...new Set(partes.filter((p) => p.tipo === "cita").map((p) => p.valor))].length > 0 && (
+      {citas.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5 border-t pt-2" style={{ borderColor: "var(--line)" }}>
-          {[...new Set(partes.filter((p) => p.tipo === "cita").map((p) => p.valor))].map((n) => {
+          {citas.map((n) => {
             const idx = parseInt(n, 10) - 1;
             const f: Fuente | undefined = fuentes[idx];
             if (!f) return null;
@@ -267,18 +277,18 @@ function AccionesMensaje({ mensaje }: { mensaje: MensajeChat }) {
           className="btn-iconte"
           style={{ color: leyendo ? "var(--accent-b)" : "var(--ink-soft)" }}
         >
-          {leyendo ? "■ Detener" : "🔊 Escuchar"}
+          {leyendo ? <Square size={14} /> : <Volume2 size={14} />}
         </button>
       )}
       <button
         type="button"
         aria-label={copiado ? "Copiado" : "Copiar respuesta"}
-        title="Copiar al portapapeles"
+        title={copiado ? "Copiado" : "Copiar al portapapeles"}
         onClick={() => void copiar()}
         className="btn-iconte"
         style={{ color: copiado ? "var(--accent-a)" : "var(--ink-soft)" }}
       >
-        {copiado ? "✓ Copiado" : "📋 Copiar"}
+        {copiado ? <Check size={14} /> : <Copy size={14} />}
       </button>
     </div>
   );

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http.HttpResults;
 using RAG.Api.Configuration;
@@ -13,21 +14,31 @@ namespace RAG.Api.Endpoints;
 
 public static class DocumentsEndpoints
 {
-    public static IEndpointRouteBuilder MapDocuments(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapDocuments(this IEndpointRouteBuilder app, bool habilitarRoles = false)
     {
         var group = app.MapGroup("/api/documents").WithTags("Documentos");
 
-        group.MapPost("/upload", UploadAsync);
+        // con auth habilitada, subir/gestionar exige rol de equipo (teamleader|superusuario);
+        // la lectura (listado/estado) queda abierta: el chat la necesita sin distinción de rol
+        var subir = group.MapPost("/upload", UploadAsync);
+        var borrar = group.MapDelete("/{id:guid}", DeleteAsync);
+        var mover = group.MapPatch("/{id:guid}/folder", MoveToFolderAsync);
+        if (habilitarRoles)
+        {
+            subir.RequireAuthorization(AuthRegistration.PoliticaEquipo);
+            borrar.RequireAuthorization(AuthRegistration.PoliticaEquipo);
+            mover.RequireAuthorization(AuthRegistration.PoliticaEquipo);
+        }
+
         group.MapGet("/", ListAsync);
         group.MapGet("/{id:guid}/status", StatusAsync);
-        group.MapDelete("/{id:guid}", DeleteAsync);
-        group.MapPatch("/{id:guid}/folder", MoveToFolderAsync);
 
         return app;
     }
 
     private static async Task<Results<Created<Document>, Conflict<string>, BadRequest<ControlledException>>> UploadAsync(
         HttpRequest request,
+        ClaimsPrincipal user,
         IDocumentStore documents,
         IFolderStore folders,
         TextExtractorResolver resolver,
@@ -51,6 +62,7 @@ public static class DocumentsEndpoints
         if (!Dominios.EsValido(dominio))
             throw new ControlledException("dominio_invalido", StatusCodes.Status400BadRequest,
                 $"El dominio '{dominio}' no es válido. Valores permitidos: {string.Join(", ", Dominios.Todos)}.");
+        AuthRegistration.ExigirDominioGestionado(user, dominio);
 
         Guid? folderId = Guid.TryParse(form["folderId"].ToString(), out var parsedFolder) ? parsedFolder : null;
         if (folderId.HasValue)
@@ -115,7 +127,7 @@ public static class DocumentsEndpoints
                 $"Dominio '{dominio}' no válido.");
 
         folderId = folderId == Guid.Empty ? null : folderId;
-        var docs = await documents.ListAsync(dominio, folderId, nombreContiene: q, ct);
+        var docs = await documents.ListAsync(dominio, folderId, nombreContiene: q, limite: 100, ct);
         return TypedResults.Ok(docs.Select(d => DocumentDto.From(d)).ToList());
     }
 
@@ -134,11 +146,11 @@ public static class DocumentsEndpoints
     }
 
     private static async Task<NoContent> DeleteAsync(
-        Guid id, IDocumentStore documents, IRagService rag, CancellationToken ct)
+        Guid id, ClaimsPrincipal user, IDocumentStore documents, IRagService rag, CancellationToken ct)
     {
         var doc = await documents.FindByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Documento {id} no existe.");
-        _ = doc;
+        AuthRegistration.ExigirDominioGestionado(user, doc.Dominio);
 
         // limpieza best-effort del índice vectorial; el borrado lógico local continúa siempre
         try { await rag.DeleteDocumentAsync(id, ct); }
@@ -149,10 +161,11 @@ public static class DocumentsEndpoints
     }
 
     private static async Task<Ok<DocumentDto>> MoveToFolderAsync(
-        Guid id, MoveFolderRequest body, IDocumentStore documents, IFolderStore folders, CancellationToken ct)
+        Guid id, MoveFolderRequest body, ClaimsPrincipal user, IDocumentStore documents, IFolderStore folders, CancellationToken ct)
     {
         var doc = await documents.FindByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Documento {id} no existe.");
+        AuthRegistration.ExigirDominioGestionado(user, doc.Dominio);
 
         if (body.FolderId is { } targetFolder)
         {

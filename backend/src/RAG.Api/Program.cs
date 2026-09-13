@@ -75,7 +75,7 @@ builder.Services.AddHostedService<IngestionWorker>();
 // el proveedor Google se registra únicamente si hay credenciales configuradas.
 if (auth.Enabled)
 {
-    builder.Services.AddAuthorization();
+    builder.Services.AddAuthorization(options => AuthRegistration.ConfigurarPoliticas(options));
     builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
         .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, o => AuthRegistration.ConfigurarCookie(o, auth))
         .AddGoogleOidc(auth);
@@ -98,6 +98,21 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
+
+if (storage.Provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+{
+    // auto-migra bases creadas con versiones anteriores de schema.sql (idempotente)
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbConnectionFactory>();
+        await new SchemaMigrator(factory).MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Migración del esquema 'app' fallida (no bloquea el arranque).");
+    }
+}
 
 if (auth.Enabled)
 {
@@ -128,10 +143,12 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 //app.UseHttpsRedirection();
 app.UseMiddleware<InternalAuthMiddleware>();
 
-app.MapDocuments();
-app.MapFolders();
+app.MapDocuments(habilitarRoles: auth.Enabled);
+app.MapFolders(habilitarRoles: auth.Enabled);
 app.MapQuery();
 app.MapConversations(exigirAuth: auth.Enabled);
+app.MapUsuarios(habilitarAdmin: auth.Enabled);
+app.MapUsuariosPermitidos(habilitarAdmin: auth.Enabled);
 app.MapAuth(auth);
 
 app.Run();

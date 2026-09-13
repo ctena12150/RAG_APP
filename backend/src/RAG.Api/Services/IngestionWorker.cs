@@ -23,6 +23,9 @@ public sealed class IngestionWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<IngestionWorker> logger) : BackgroundService
 {
+    private const int MaxIntentos = 3;
+    private static readonly Dictionary<Guid, int> Intentos = new();
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await foreach (var documentId in queue.ReadAllAsync(stoppingToken))
@@ -35,6 +38,7 @@ public sealed class IngestionWorker(
                 var resolver = scope.ServiceProvider.GetRequiredService<TextExtractorResolver>();
 
                 await ProcessAsync(documentId, documents, rag, resolver, stoppingToken);
+                lock (Intentos) Intentos.Remove(documentId);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -61,8 +65,9 @@ public sealed class IngestionWorker(
         await documents.UpdateEstadoAsync(documentId, DocumentStatus.Procesando, ct: ct);
 
         await using var content = new MemoryStream();
-        // el extractor necesita el stream; el binario se recibe desde la cola de subida en memoria
-        var binary = IngestionBinaryStore.Pop(documentId)
+        // el extractor necesita el stream; el binario se consulta sin consumir para
+        // poder reintentar si el servicio RAG no está disponible
+        var binary = IngestionBinaryStore.Peek(documentId)
             ?? throw new InvalidOperationException("El contenido del documento no está disponible para procesar.");
         await content.WriteAsync(binary, ct);
         content.Position = 0;
@@ -76,12 +81,34 @@ public sealed class IngestionWorker(
             document.Dominio,
             [.. extracted.Segmentos.Select(s => new IngestSegment(s.Pagina, s.Texto))]), ct);
 
+        IngestionBinaryStore.Pop(documentId);
         await documents.UpdateEstadoAsync(document.Id, DocumentStatus.Listo,
             totalPaginas: extracted.TotalPaginas, ct: ct);
     }
 
     private async Task MarkFailedAsync(Guid documentId, Exception ex, CancellationToken ct)
     {
+        int intento;
+        lock (Intentos) intento = Intentos[documentId] = Intentos.GetValueOrDefault(documentId) + 1;
+        // sin binario (reinicio con cola persistida) o tras agotar intentos: error definitivo
+        if (IngestionBinaryStore.Peek(documentId) is not null && intento < MaxIntentos && !ct.IsCancellationRequested)
+        {
+            logger.LogWarning("Reintentando ingesta de {DocumentoId} (intento {Intento}/{Max})", documentId, intento + 1, MaxIntentos);
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var documents = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
+                await documents.UpdateEstadoAsync(documentId, DocumentStatus.Pendiente, ct: ct);
+                await queue.EnqueueAsync(documentId, ct);
+                return;
+            }
+            catch (Exception inner)
+            {
+                logger.LogError(inner, "No se pudo reencolar el documento {DocumentoId}", documentId);
+            }
+        }
+        IngestionBinaryStore.Pop(documentId);
+        lock (Intentos) Intentos.Remove(documentId);
         try
         {
             using var scope = scopeFactory.CreateScope();
@@ -109,6 +136,11 @@ public static class IngestionBinaryStore
     public static void Put(Guid documentId, byte[] bytes)
     {
         lock (Lock) Pending[documentId] = bytes;
+    }
+
+    public static byte[]? Peek(Guid documentId)
+    {
+        lock (Lock) return Pending.GetValueOrDefault(documentId);
     }
 
     public static byte[]? Pop(Guid documentId)

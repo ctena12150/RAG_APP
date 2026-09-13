@@ -35,6 +35,9 @@ def crear_app(settings=None, contenedor=None) -> FastAPI:
     if contenedor is None:
         contenedor = construir_contenedor(settings)
 
+    if contenedor.settings.rag_store == "postgres" and not contenedor.settings.internal_api_key:
+        raise RuntimeError("INTERNAL_API_KEY sin definir con RAG_STORE=postgres (ver deploy/.env).")
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         await contenedor.store.conectar()
@@ -42,6 +45,8 @@ def crear_app(settings=None, contenedor=None) -> FastAPI:
             await _warmup(contenedor)
         yield
         await contenedor.store.cerrar()
+        await contenedor.embeddings.close()
+        await contenedor.llm.close()
 
     app = FastAPI(title="RAG Service", version="1.0.0", lifespan=lifespan)
     app.include_router(crear_router(contenedor))

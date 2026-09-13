@@ -99,7 +99,7 @@ export default function LoginOptions({ motivo, className }: { motivo?: string; c
               style={{ borderColor: "var(--line)", color: "var(--ink)" }}
             />
             {errorLocal && (
-              <p className="text-xs" style={{ color: "#e5484d", textAlign: "center" }} role="alert">
+              <p className="text-xs" style={{ color: "var(--danger)", textAlign: "center" }} role="alert">
                 {errorLocal}
               </p>
             )}
@@ -110,7 +110,7 @@ export default function LoginOptions({ motivo, className }: { motivo?: string; c
               style={{
                 background: "linear-gradient(135deg, var(--accent-a), var(--accent-b))",
                 borderColor: "transparent",
-                color: "#0c1512",
+                color: "var(--accent-ink, #0c1512)",
               }}
             >
               {enviando ? "Entrando…" : "Entrar"}

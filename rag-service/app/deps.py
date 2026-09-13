@@ -44,7 +44,7 @@ def construir_contenedor(settings: Settings | None = None) -> Contenedor:
     else:
         from app.retrieval.store import PostgresRagStore
 
-        store = PostgresRagStore(s.database_dsn, s.embedding_dim)
+        store = PostgresRagStore(s.database_dsn, s.embedding_dim, s.hnsw_ef_search)
     embeddings = EmbeddingsClient(s)
     llm = LlmClient(s)
     engine = RetrievalEngine(s, store, embeddings, llm)

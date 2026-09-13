@@ -1,28 +1,24 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../state/AppContext";
-import type { Fuente, TrazaPipeline } from "../lib/types";
+import type { TrazaPipeline } from "../lib/types";
 
-/** Panel derecho técnico: la fuente de cada respuesta vive en el chat. */
+/** Panel derecho técnico: solo visible para el superusuario (la traza no les llega al resto). */
 export default function SourcesPanel() {
-  const { chat } = useApp();
+  const { chat, esSuperUsuario, proveedoresDisponibles } = useApp();
   const [tab, setTab] = useState<"traza">("traza");
+
+  if (proveedoresDisponibles.length > 0 && !esSuperUsuario) return null;
   
 
   useEffect(() => {
-    const onFuente = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { chunkId?: string; fuente?: Fuente };
-      if (!detail?.fuente) return;
-    };
     const onTraza = () => {
       setTab("traza");
     };
-    window.addEventListener("fuente-seleccionada", onFuente);
     window.addEventListener("mostrar-traza", onTraza);
     return () => {
-      window.removeEventListener("fuente-seleccionada", onFuente);
       window.removeEventListener("mostrar-traza", onTraza);
     };
-    }, [chat.mensajes]);
+  }, []);
 
   const ultimoAsistenteConFuentes = [...chat.mensajes]
     .reverse()

@@ -32,18 +32,13 @@ public static class QueryEndpoints
             throw new ControlledException("pregunta_requerida", StatusCodes.Status400BadRequest, "La pregunta es obligatoria.");
         ValidacionPregunta.Validar(body.Pregunta);
 
-        var readyDocs = await documents.ListAsync(ct: ct);
-        if (readyDocs.All(d => d.Estado != DocumentStatus.Listo))
+        var readyDocs = await documents.HayListosAsync(ct);
+        if (!readyDocs)
             throw new ControlledException("sin_documentos", StatusCodes.Status409Conflict,
                 "Todavía no hay documentos indexados. Sube un documento antes de consultar.");
 
         var dominios = ConversationsEndpoints.ValidarDominios(body.Dominios);
         IReadOnlyList<Guid>? documentIds = body.DocumentosIds;
-        if (documentIds is { Count: > 0 })
-        {
-            var validIds = readyDocs.Where(d => d.Estado == DocumentStatus.Listo).Select(d => d.Id).ToHashSet();
-            documentIds = documentIds.Where(validIds.Contains).ToList();
-        }
 
         response.StatusCode = StatusCodes.Status200OK;
         response.ContentType = "text/event-stream; charset=utf-8";
@@ -73,14 +68,14 @@ public static class QueryEndpoints
         try { ragHealth = await rag.GetHealthAsync(ct); }
         catch (RagServiceException) { ragHealth = new RagServiceHealth(false, null, null); }
 
-        var docs = await documents.ListAsync(ct: ct);
+        var (listos, totales) = await documents.ContarAsync(ct);
 
         return Results.Ok(new
         {
             estado = "ok",
             almacenamiento = storage.Provider,
-            documentosListos = docs.Count(d => d.Estado == DocumentStatus.Listo),
-            documentosTotales = docs.Count,
+            documentosListos = listos,
+            documentosTotales = totales,
             ragService = new
             {
                 disponible = ragHealth.Disponible,

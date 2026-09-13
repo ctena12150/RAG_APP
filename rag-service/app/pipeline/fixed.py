@@ -18,8 +18,8 @@ from app.generation.generate import (
     limpiar_citas_invalidas,
 )
 from app.models import Traza
+from app.pipeline.comun import abstencion_por_umbral, datos_done
 from app.pipeline.verificacion import (
-    _abstencion_por_umbral,
     _verificacion_y_revision,
     evaluar_guardrails_salida,
 )
@@ -41,23 +41,24 @@ async def pipeline_fijo(
     historial: list[dict],
     dominios: list[str] | None,
     documentos_ids: list[str] | None,
+    embedding_pregunta: list[float] | None = None,
 ) -> AsyncIterator[dict]:
     traza = Traza(modo="fijo") if settings.enable_pipeline_trace else None
     inicio_total = time.perf_counter()
-    modelo_solicitado = settings.chain("generation")[0] if settings.chain("generation") else (None, None)
 
     if not await engine.hay_documentos_listos(dominios):
         raise SinDocumentosError()
 
     yield Sse.evento("progress", {"etapa": "recuperacion", "texto": "Buscando en los documentos…"})
     contexto = await engine.run_retrieval(
-        pregunta, historial, dominios, documentos_ids, traza, con_reescritura=True
+        pregunta, historial, dominios, documentos_ids, traza,
+        con_reescritura=True, embedding_pregunta=embedding_pregunta,
     )
     fuentes = contexto.hits
     yield Sse.evento("progress", {"etapa": "recuperacion", "texto": f"Recuperados {len(fuentes)} fragmentos."})
 
     # --- guardrail de umbral: contexto débil → abstención directa sin generar ---
-    abstencion = _abstencion_por_umbral(settings, contexto.confianza, traza)
+    abstencion = abstencion_por_umbral(settings, contexto.confianza, traza)
     if abstencion is not None:
         yield Sse.evento("done", abstencion)
         return
@@ -81,23 +82,7 @@ async def pipeline_fijo(
 
     yield Sse.evento(
         "done",
-        {
-            "content": contenido_limpio,
-            "sources": [t.to_dict() for t in tarjetas],
-            "trace": traza.to_dict() if traza else None,
-            "metrics": {
-                "tokens": max(1, len(contenido.split())) if contenido else 0,
-                "tokensEstimados": True,
-                "generacionMs": int((time.perf_counter() - inicio) * 1000),
-                "totalMs": int((time.perf_counter() - inicio_total) * 1000),
-                "modelo": getattr(llm, "ultimo_modelo", None),
-                "proveedor": getattr(llm, "ultimo_proveedor", None),
-                "fallback": getattr(llm, "ultimo_fallback", False),
-                "modeloSolicitado": modelo_solicitado[1],
-                "proveedorSolicitado": modelo_solicitado[0],
-                "razonamiento": settings.razonamiento,
-            },
-        },
+        datos_done(settings, llm, contenido, contenido_limpio, tarjetas, traza, inicio, inicio_total),
     )
 
     # --- verificación en segundo plano (nunca bloqueante para el usuario final) ---
@@ -111,21 +96,3 @@ async def pipeline_fijo(
         evaluacion_previa=evaluacion,
     ):
         yield evento
-
-
-async def _revisar(
-    settings: Settings,
-    llm: LlmClient,
-    pregunta: str,
-    historial: list[dict],
-    fuentes,
-    critica: str,
-    hint: str | None,
-) -> str | None:
-    """Una única revisión corregida con la crítica específica inyectada en el prompt."""
-    try:
-        mensajes = construir_prompt_generacion(pregunta, historial, fuentes, hint, critica=critica)
-        texto = await llm.complete(settings.chain("generation"), mensajes, temperature=0.1, max_tokens=1200)
-        return limpiar_citas_invalidas(texto.strip(), len(fuentes)) or None
-    except Exception:  # noqa: BLE001 — la revisión nunca rompe la respuesta visible
-        return None

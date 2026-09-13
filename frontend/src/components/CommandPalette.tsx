@@ -5,7 +5,7 @@ import { useApp } from "../state/AppContext";
 
 /** Command palette (Ctrl/Cmd+K): navegación y búsqueda de conversaciones/documentos. */
 export default function CommandPalette({ cerrar }: { cerrar: () => void }) {
-  const { conversaciones, documentos, abrirConversacion, nuevaConversacion, setDominioActivo } = useApp();
+  const { conversaciones, documentos, abrirConversacion, nuevaConversacion, setDominioActivo, puedeGestionarDocumentos } = useApp();
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export default function CommandPalette({ cerrar }: { cerrar: () => void }) {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24" style={{ background: "rgba(2,6,14,.6)" }} onClick={cerrar}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24" style={{ background: "var(--overlay)" }} onClick={cerrar}>
       <div
         className="w-[560px] max-w-[92vw] overflow-hidden rounded-xl"
         style={{ background: "var(--bg-elev)", border: "1px solid var(--line)" }}
@@ -64,7 +64,7 @@ export default function CommandPalette({ cerrar }: { cerrar: () => void }) {
               </Command.Group>
             )}
 
-            {docsFiltrados.length > 0 && (
+            {puedeGestionarDocumentos && docsFiltrados.length > 0 && (
               <Command.Group heading="Documentos" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase theme-ink-soft">
                 {docsFiltrados.slice(0, 8).map((d) => (
                   <Item key={d.id} onSelect={() => { setDominioActivo(d.dominio); cerrar(); }}>
@@ -84,7 +84,7 @@ function Item({ children, onSelect }: { children: React.ReactNode; onSelect: () 
   return (
     <Command.Item
       onSelect={onSelect}
-      className="cursor-pointer rounded-md px-3 py-2 text-sm data-[selected=true]:bg-white/5"
+      className="palette-item cursor-pointer rounded-md px-3 py-2 text-sm"
       style={{ color: "var(--ink)" }}
     >
       {children}

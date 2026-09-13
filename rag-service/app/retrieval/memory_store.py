@@ -10,7 +10,7 @@ import re
 import threading
 from uuid import uuid4
 
-from app.models import Chunk, Hit
+from app.models import NOMBRE_ESTADO, Chunk, Hit
 
 _TOKEN_RE = re.compile(r"[\s,.;:!?()\"'\u00bf\u00a1]+")
 
@@ -154,7 +154,7 @@ class MemoryRagStore:
                 conteo[c["documento_id"]] = conteo.get(c["documento_id"], 0) + 1
         for d in docs:
             d["chunks"] = conteo.get(d["id"], 0)
-            d["estado"] = {0: "pendiente", 1: "procesando", 2: "listo", 3: "error"}.get(d["estado"], "desconocido")
+            d["estado"] = NOMBRE_ESTADO.get(d["estado"], "desconocido")
         return docs
 
     @staticmethod

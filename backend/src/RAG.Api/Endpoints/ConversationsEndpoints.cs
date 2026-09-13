@@ -30,7 +30,7 @@ public static class ConversationsEndpoints
     }
 
     private static async Task<Created<Conversation>> CreateAsync(
-        CreateConversationRequest body, IConversationStore conversations, CancellationToken ct)
+        CreateConversationRequest body, ClaimsPrincipal user, IConversationStore conversations, CancellationToken ct)
     {
         var conversation = new Conversation
         {
@@ -39,6 +39,7 @@ public static class ConversationsEndpoints
             TituloAutomatico = string.IsNullOrWhiteSpace(body.Titulo),
             Dominios = ValidarDominios(body.Dominios) ?? [],
             DocumentosIds = body.DocumentosIds,
+            UsuarioId = DueñoActual(user),
             CreadoUtc = DateTime.UtcNow,
             ActualizadoUtc = DateTime.UtcNow
         };
@@ -47,24 +48,27 @@ public static class ConversationsEndpoints
     }
 
     private static async Task<Ok<List<Conversation>>> ListAsync(
-        IConversationStore conversations, string? q, CancellationToken ct)
+        ClaimsPrincipal user, IConversationStore conversations, string? q, CancellationToken ct)
     {
-        var result = await conversations.ListAsync(q, ct);
+        var result = await conversations.ListAsync(q, DueñoActual(user), limite: 100, ct: ct);
         return TypedResults.Ok(result.ToList());
     }
 
-    private static async Task<Ok<object>> GetAsync(Guid id, IConversationStore conversations, IMessageStore messages, CancellationToken ct)
+    private static async Task<Ok<object>> GetAsync(Guid id, ClaimsPrincipal user, IConversationStore conversations, IMessageStore messages, CancellationToken ct)
     {
         var conversation = await conversations.FindByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Conversación {id} no existe.");
+        VerificarAcceso(conversation, DueñoActual(user));
         var history = await messages.ListByConversationAsync(id, ct);
+        if (!PuedeVerTraza(user)) OcultarTraza(history);
         return TypedResults.Ok<object>(new { conversacion = conversation, mensajes = history });
     }
 
-    private static async Task<NoContent> DeleteAsync(Guid id, IConversationStore conversations, IRagService rag, CancellationToken ct)
+    private static async Task<NoContent> DeleteAsync(Guid id, ClaimsPrincipal user, IConversationStore conversations, IRagService rag, CancellationToken ct)
     {
-        _ = await conversations.FindByIdAsync(id, ct)
+        var conversation = await conversations.FindByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Conversación {id} no existe.");
+        VerificarAcceso(conversation, DueñoActual(user));
         await conversations.DeleteAsync(id, ct);
         // las respuestas cacheadas quedan huérfanas al borrar la conversación
         try { await rag.InvalidarCacheAsync(ct); }
@@ -72,17 +76,20 @@ public static class ConversationsEndpoints
         return TypedResults.NoContent();
     }
 
-    private static async Task<Ok<List<Message>>> ListMessagesAsync(Guid id, IConversationStore conversations, IMessageStore messages, CancellationToken ct)
+    private static async Task<Ok<List<Message>>> ListMessagesAsync(Guid id, ClaimsPrincipal user, IConversationStore conversations, IMessageStore messages, CancellationToken ct)
     {
-        _ = await conversations.FindByIdAsync(id, ct)
+        var conversation = await conversations.FindByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Conversación {id} no existe.");
+        VerificarAcceso(conversation, DueñoActual(user));
         var result = await messages.ListByConversationAsync(id, ct);
+        if (!PuedeVerTraza(user)) OcultarTraza(result);
         return TypedResults.Ok(result.ToList());
     }
 
     private static async Task AskAsync(
         Guid id,
         AskRequest body,
+        ClaimsPrincipal user,
         HttpResponse response,
         IConversationStore conversations,
         IMessageStore messages,
@@ -92,24 +99,19 @@ public static class ConversationsEndpoints
     {
         var conversation = await conversations.FindByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Conversación {id} no existe.");
+        VerificarAcceso(conversation, DueñoActual(user));
 
         if (string.IsNullOrWhiteSpace(body.Pregunta))
             throw new ControlledException("pregunta_requerida", StatusCodes.Status400BadRequest, "La pregunta es obligatoria.");
         ValidacionPregunta.Validar(body.Pregunta);
 
         // rechazo controlado cuando aún no hay documentos indexados
-        var readyDocs = await documents.ListAsync(ct: ct);
-        if (readyDocs.All(d => d.Estado != DocumentStatus.Listo))
+        if (!await documents.HayListosAsync(ct))
             throw new ControlledException("sin_documentos", StatusCodes.Status409Conflict,
                 "Todavía no hay documentos indexados. Sube un documento antes de consultar.");
 
         var dominios = body.Dominios is { Count: > 0 } ? ValidarDominios(body.Dominios) : conversation.Dominios;
         var documentIds = body.DocumentosIds ?? conversation.DocumentosIds;
-        if (documentIds is { Count: > 0 })
-        {
-            var validIds = readyDocs.Where(d => d.Estado == DocumentStatus.Listo).Select(d => d.Id).ToHashSet();
-            documentIds = documentIds.Where(validIds.Contains).ToList();
-        }
 
         var userMessage = await messages.AddAsync(new Message
         {
@@ -123,9 +125,8 @@ public static class ConversationsEndpoints
         if (conversation.TituloAutomatico)
             await conversations.SetTituloAsync(id, DerivarTitulo(body.Pregunta), automatico: true, ct);
 
-        var history = (await messages.ListByConversationAsync(id, ct))
+        var history = (await messages.ListRecientesAsync(id, MaxHistoryTurns + 1, ct))
             .Where(m => m.Id != userMessage.Id)
-            .OrderBy(m => m.CreadoUtc)
             .TakeLast(MaxHistoryTurns)
             .Select(m => new ChatTurn(m.Rol, m.Contenido))
             .ToList();
@@ -146,19 +147,21 @@ public static class ConversationsEndpoints
             Razonamiento: body.Razonamiento,
             Perfil: body.Perfil);
 
-        await relay.RelayAsync(response, new RelayOptions(request, id, null), ct);
+        await relay.RelayAsync(response, new RelayOptions(request, id, null, PuedeVerTraza(user)), ct);
     }
 
     private static async Task<Ok<object>> AcceptRevisionAsync(
-        Guid id, Guid messageId, AcceptRevisionRequest body, IConversationStore conversations, IMessageStore messages, CancellationToken ct)
+        Guid id, Guid messageId, AcceptRevisionRequest body, ClaimsPrincipal user,
+        IConversationStore conversations, IMessageStore messages, CancellationToken ct)
     {
-        _ = await conversations.FindByIdAsync(id, ct)
+        var conversation = await conversations.FindByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Conversación {id} no existe.");
+        VerificarAcceso(conversation, DueñoActual(user));
         var message = await messages.FindByIdAsync(messageId, ct)
             ?? throw new KeyNotFoundException($"Mensaje {messageId} no existe.");
         if (message.ConversacionId != id)
             throw new ControlledException("mensaje_ajeno", StatusCodes.Status400BadRequest, "El mensaje no pertenece a la conversación.");
-        if (!message.VerificacionJson!.Contains("revision", StringComparison.Ordinal) && message.RevisionContenido is null && message.Contenido == body.Contenido)
+        if (message.RevisionContenido is null && message.Contenido == body.Contenido && !TieneRevision(message.VerificacionJson))
             throw new ControlledException("sin_revision", StatusCodes.Status400BadRequest, "El mensaje no tiene una revisión sugerida pendiente.");
 
         var revisionContenido = message.RevisionContenido;
@@ -167,9 +170,25 @@ public static class ConversationsEndpoints
         if (string.IsNullOrWhiteSpace(revisionContenido))
             throw new ControlledException("sin_revision", StatusCodes.Status400BadRequest, "El mensaje no tiene una revisión sugerida pendiente.");
 
-        await messages.ApplyRevisionAsync(messageId, revisionContenido!, ct);
-        var updated = await messages.FindByIdAsync(messageId, ct);
-        return TypedResults.Ok<object>(new { messageId, content = updated?.Contenido });
+        var contenido = await messages.ApplyRevisionAsync(messageId, revisionContenido!, ct);
+        return TypedResults.Ok<object>(new { messageId, content = contenido });
+    }
+
+    private static bool TieneRevision(string? verificacionJson)
+    {
+        if (string.IsNullOrWhiteSpace(verificacionJson)) return false;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(verificacionJson);
+            return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("revision", out var revision)
+                && revision.ValueKind != System.Text.Json.JsonValueKind.Null
+                && !(revision.ValueKind == System.Text.Json.JsonValueKind.String && string.IsNullOrWhiteSpace(revision.GetString()));
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
     }
 
     internal static IReadOnlyList<string>? ValidarDominios(IReadOnlyList<string>? dominios)
@@ -186,6 +205,42 @@ public static class ConversationsEndpoints
     {
         var limpio = pregunta.Trim().ReplaceLineEndings(" ");
         return limpio.Length <= 60 ? limpio : limpio[..57] + "…";
+    }
+
+    /// <summary>
+    /// La traza técnica del pipeline solo la ve el superusuario (o nadie con auth
+    /// desactivada, modo dev). El resto recibe los mensajes con TrazaJson a null.
+    /// </summary>
+    internal static bool PuedeVerTraza(ClaimsPrincipal user)
+    {
+        if (user.Identity?.IsAuthenticated != true) return true;
+        return string.Equals(AuthRegistration.RolDelPrincipal(user), Roles.SuperUsuario, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void OcultarTraza(IEnumerable<Message> mensajes)
+    {
+        foreach (var m in mensajes) m.TrazaJson = null;
+    }
+
+    /// <summary>
+    /// Identidad del dueño de una conversación: el claim rag:email normalizado (email para
+    /// Google; email o nombre de usuario para el login local). Null = auth desactivada.
+    /// </summary>
+    private static string? DueñoActual(ClaimsPrincipal user) =>
+        user.FindFirst(AuthRegistration.ClaimEmail)?.Value?.Trim().ToLowerInvariant();
+
+    /// <summary>
+    /// Ownership de conversaciones. Con auth activa (hay dueño en la sesión), solo el dueño
+    /// accede; las conversaciones previas sin dueño quedan inaccesibles (nunca se filtran a
+    /// otros usuarios). Sin auth (dueño null) el historial es compartido y nada se filtra.
+    /// </summary>
+    private static void VerificarAcceso(Conversation conversation, string? dueño)
+    {
+        if (dueño is null) return;
+        if (conversation.UsuarioId is not null &&
+            string.Equals(conversation.UsuarioId, dueño, StringComparison.OrdinalIgnoreCase))
+            return;
+        throw new KeyNotFoundException($"Conversación {conversation.Id} no existe.");
     }
 }
 

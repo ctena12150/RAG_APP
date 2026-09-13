@@ -10,13 +10,15 @@ namespace RAG.Tools.CrearUsuario;
 /// Uso:
 ///   dotnet run --project backend/tools/CrearUsuario -- \
 ///       --connection "Host=...;Port=5432;Database=ragapp;Username=...;Password=..." \
-///       --usuario alice --email alice@empresa.com --nombre "Alice Ruiz" [--password "..."]
+///       --usuario alice --rol teamleader --email alice@empresa.com --nombre "Alice Ruiz" [--password "..."]
 ///
 /// Si no se pasa --password, se solicita de forma interactiva sin eco. El connection string
-/// también puede venir en la variable de entorno RAG_POSTGRES.
+/// también puede venir en la variable de entorno RAG_POSTGRES. Rol: usuario|teamleader|superusuario.
 /// </summary>
 public static class Program
 {
+    private static readonly string[] RolesValidos = ["usuario", "teamleader", "superusuario"];
+
     private const string SqlCrearTabla = """
         CREATE TABLE IF NOT EXISTS app.usuarios (
             id            uuid PRIMARY KEY,
@@ -24,25 +26,30 @@ public static class Program
             password_hash varchar(255) NOT NULL,
             email         varchar(320),
             nombre        varchar(200),
+            rol           varchar(20)  NOT NULL DEFAULT 'usuario',
+            dominios      text[]       NOT NULL DEFAULT '{}',
             activo        boolean      NOT NULL DEFAULT true,
             creado_utc    timestamptz  NOT NULL DEFAULT now()
         );
         CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_usuario ON app.usuarios(lower(usuario));
+        ALTER TABLE app.usuarios ADD COLUMN IF NOT EXISTS rol varchar(20) NOT NULL DEFAULT 'usuario';
+        ALTER TABLE app.usuarios ADD COLUMN IF NOT EXISTS dominios text[] NOT NULL DEFAULT '{}';
         """;
 
     private const string UpsertSql = """
-        INSERT INTO app.usuarios (id, usuario, password_hash, email, nombre, activo, creado_utc)
-        VALUES (@id, @usuario, @password_hash, @email, @nombre, true, now())
+        INSERT INTO app.usuarios (id, usuario, password_hash, email, nombre, rol, activo, creado_utc)
+        VALUES (@id, @usuario, @password_hash, @email, @nombre, @rol, true, now())
         ON CONFLICT ((lower(usuario))) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             email = EXCLUDED.email,
             nombre = EXCLUDED.nombre,
+            rol = EXCLUDED.rol,
             activo = true
         """;
 
     public static async Task<int> Main(string[] args)
     {
-        var (conexion, usuario, email, nombre, password) = ParsearArgs(args);
+        var (conexion, usuario, email, nombre, rol, password) = ParsearArgs(args);
         if (string.IsNullOrWhiteSpace(conexion))
         {
             Console.Error.WriteLine("Falta el connection string: usa --connection \"...\" o la variable de entorno RAG_POSTGRES.");
@@ -51,6 +58,11 @@ public static class Program
         if (string.IsNullOrWhiteSpace(usuario))
         {
             Console.Error.WriteLine("Falta --usuario (nombre de usuario del login local).");
+            return 2;
+        }
+        if (!RolesValidos.Contains(rol))
+        {
+            Console.Error.WriteLine($"Rol inválido '{rol}'. Valores permitidos: {string.Join(", ", RolesValidos)}.");
             return 2;
         }
         if (password is null)
@@ -81,6 +93,7 @@ public static class Program
             cmd.Parameters.AddWithValue("password_hash", hash);
             cmd.Parameters.AddWithValue("email", ODb(email));
             cmd.Parameters.AddWithValue("nombre", ODb(nombre));
+            cmd.Parameters.AddWithValue("rol", rol);
             await cmd.ExecuteNonQueryAsync();
         }
         catch (NpgsqlException ex) when (ex.SqlState == "42P01")
@@ -103,12 +116,13 @@ public static class Program
         return 0;
     }
 
-    private static (string? Conexion, string Usuario, string? Email, string? Nombre, string? Password) ParsearArgs(string[] args)
+    private static (string? Conexion, string Usuario, string? Email, string? Nombre, string Rol, string? Password) ParsearArgs(string[] args)
     {
         string? conexion = Environment.GetEnvironmentVariable("RAG_POSTGRES");
         string? usuario = null;
         string? email = null;
         string? nombre = null;
+        string rol = "usuario";
         string? password = null;
 
         for (var i = 0; i < args.Length; i++)
@@ -119,6 +133,7 @@ public static class Program
                 case "--usuario": usuario = ValorSiguiente(args, ref i); break;
                 case "--email": email = ValorSiguiente(args, ref i); break;
                 case "--nombre": nombre = ValorSiguiente(args, ref i); break;
+                case "--rol": rol = ValorSiguiente(args, ref i).Trim().ToLowerInvariant(); break;
                 case "--password": password = ValorSiguiente(args, ref i); break;
                 case "--help":
                 case "-h":
@@ -128,7 +143,7 @@ public static class Program
             }
         }
 
-        return (conexion, usuario ?? string.Empty, email, nombre, password);
+        return (conexion, usuario ?? string.Empty, email, nombre, rol, password);
     }
 
     private static string ValorSiguiente(string[] args, ref int i)
@@ -203,6 +218,7 @@ public static class Program
               --usuario    <nombre>  Nombre de usuario del login local (obligatorio).
               --email      <email>   Email opcional asociado al usuario (claim de sesión).
               --nombre     <nombre>  Nombre visible opcional.
+              --rol        <rol>     usuario | teamleader | superusuario (default: usuario).
               --password   <clave>   Contraseña. Si se omite, se pide sin eco.
             """);
     }

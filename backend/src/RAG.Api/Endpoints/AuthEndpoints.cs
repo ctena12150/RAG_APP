@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using RAG.Api.Configuration;
 using RAG.Api.Middleware;
 using RAG.Domain.Interfaces;
+using RAG.Domain.Models;
 
 namespace RAG.Api.Endpoints;
 
@@ -66,6 +67,8 @@ public static class AuthEndpoints
             email = local.Email ?? usuario,
             nombre = string.IsNullOrWhiteSpace(local.Nombre) ? usuario : local.Nombre,
             proveedor = AuthRegistration.ProveedorLocal,
+            rol = Roles.EsValido(local.Rol) ? local.Rol.Trim().ToLowerInvariant() : Roles.Usuario,
+            dominios = AuthRegistration.DominiosEfectivos(local.Rol, local.Dominios),
             proveedores = ProveedoresDisponibles(auth)
         });
     }
@@ -81,6 +84,8 @@ public static class AuthEndpoints
             email = autenticado ? email : null,
             nombre = autenticado ? AuthRegistration.NombreDelPrincipal(user) : null,
             proveedor = autenticado ? user.FindFirst(AuthRegistration.ClaimProveedor)?.Value : null,
+            rol = autenticado ? AuthRegistration.RolDelPrincipal(user) : null,
+            dominios = autenticado ? AuthRegistration.DominiosDelPrincipal(user) : null,
             proveedores = ProveedoresDisponibles(auth)
         });
     }

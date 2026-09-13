@@ -18,6 +18,7 @@ public sealed class RateLimitMiddleware(RequestDelegate next, ILogger<RateLimitM
     }
 
     private readonly ConcurrentDictionary<string, Contador> _contadores = new();
+    private const int MaxClaves = 10_000;
 
     public async Task InvokeAsync(HttpContext context, Microsoft.Extensions.Options.IOptions<RateLimitOptions> optionsAccessor)
     {
@@ -32,13 +33,20 @@ public sealed class RateLimitMiddleware(RequestDelegate next, ILogger<RateLimitM
         var clave = ConstruirClave(context, opciones.TrustProxyHeaders);
         var ahora = DateTime.UtcNow;
         var esCara = EsRutaCara(context);
+        var ventanaMin = Math.Max(opciones.WindowMinutes, 1);
+
+        // purga perezosa: la clave expirada se elimina en vez de reciclarse, y si el
+        // diccionario crece sin control (IPs spoofed vía X-Forwarded-For) se vacía
+        if (_contadores.Count > MaxClaves) _contadores.Clear();
 
         bool superado;
-        lock (_contadores.GetOrAdd(clave, _ => new Contador()))
+        var contador = _contadores.GetOrAdd(clave, _ => new Contador { VentanaInicioUtc = ahora });
+        lock (contador)
         {
-            var contador = _contadores[clave];
-            if ((ahora - contador.VentanaInicioUtc).TotalMinutes >= Math.Max(opciones.WindowMinutes, 1))
+            if ((ahora - contador.VentanaInicioUtc).TotalMinutes >= ventanaMin)
             {
+                if ((ahora - contador.VentanaInicioUtc).TotalMinutes >= ventanaMin * 2)
+                    _contadores.TryRemove(clave, out _);
                 contador.VentanaInicioUtc = ahora;
                 contador.General = 0;
                 contador.Caras = 0;

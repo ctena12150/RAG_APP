@@ -22,7 +22,7 @@ scripts/postgres/schema.sql     esquema "app" (.NET); el esquema "rag" se auto-c
 ### Backend .NET (backend/)
 ```bash
 dotnet build RagApp.slnx                                   # compilar todo (0 errores esperados)
-dotnet test RagApp.slnx                                    # suite completa (43 tests)
+dotnet test RagApp.slnx                                    # suite completa (77 tests)
 dotnet test backend/tests/RAG.Api.Tests --filter "FullyQualifiedName~Upload_duplicado"   # UN test por nombre
 dotnet test backend/tests/RAG.Api.Tests --filter "FullyQualifiedName~DocumentsRouteTests" # una clase
 ```
@@ -31,7 +31,7 @@ Los tests usan `WebApplicationFactory` con fakes (`FakeRagService`): **nunca red
 ### Servicio Python (rag-service/)
 ```bash
 cd rag-service
-.venv/Scripts/python -m pytest tests -q                                    # suite completa (59)
+.venv/Scripts/python -m pytest tests -q                                    # suite completa (76)
 .venv/Scripts/python -m pytest tests/test_guardrails.py -q                 # un archivo
 .venv/Scripts/python -m pytest "tests/test_rutas.py::test_health_reporta_configuracion"  # UN test
 ```
@@ -45,7 +45,7 @@ Dev-deps: `pip install -r requirements-dev.txt` (ruff).
 ```bash
 npx tsc -b                       # typecheck estricto (debe pasar sin errores)
 npm run build                    # build producción
-npx vitest run                   # suite completa (30)
+npx vitest run                   # suite completa (48)
 npx vitest run src/test/lib.test.tsx                           # un archivo
 npx vitest run -t "dividirPorCitas"                            # UN test por nombre
 ```
@@ -63,6 +63,7 @@ cd frontend && npm run dev                                                   # 3
 ```
 Sin Postgres: `RAG_STORE=memory` (Python) + `"Storage:Provider": "InMemory"` (.NET).
 Primer venv: `py -3.12 -m venv rag-service/.venv && ... pip install -r requirements.txt`.
+Secretos: `appsettings.json` viaja con placeholders (nunca credenciales reales); en local usa user-secrets/env (`Storage__ConnectionString`, `Security__InternalApiKey`, `RagService__InternalKey`), en la VPS los inyecta `deploy/docker-compose.yml` desde `deploy/.env`. La contraseña `RagTest2026-1234` de `deploy/.env.example` es solo ejemplo: hay que rotarla. Python falla al arrancar con `RAG_STORE=postgres` sin `INTERNAL_API_KEY`.
 
 ## Arquitectura — invariantes que NO debes romper
 
@@ -127,9 +128,11 @@ Primer venv: `py -3.12 -m venv rag-service/.venv && ... pip install -r requireme
 
 **Chat**: frontend → `POST /api/conversations/{id}/messages` → valida pregunta (jailbreak/longitud) + rechazo sin documentos → persiste mensaje usuario → auto-título (truncado) → relay SSE de Python (`RagChatRelay`) → persiste assistant en `done`, verificación/revisión en sus eventos → PATCH `.../revision` aplica la revisión aceptada.
 
-**Retrieval compartido** (`run_retrieval`): reescritura (si historial) → expansión multi-query → híbrido por variante (vector+keyword) → RRF → dedupe Jaccard → rerank LLM (fail-open) → red de rescate para preguntas amplias. Modo fijo = 1 pasada; agéntico = N pasadas por herramientas del Director + fallback transparente al fijo si el planner falla antes del primer token.
+**Retrieval compartido** (`run_retrieval`): reescritura+expansión en UNA llamada LLM si hay historial (`enable_consulta_fusionada`; si no, dos seriales) → híbrido por variante (vector+keyword) → RRF → dedupe Jaccard (primeros 500 chars) → rerank LLM (fail-open; omitido en tool-calls del Director salvo `enable_rerank_herramientas`) → red de rescate para preguntas amplias. HNSW con `hnsw_ef_search=100` por conexión. Modo fijo = 1 pasada; agéntico = N pasadas por herramientas del Director + fallback transparente al fijo si el planner falla antes del primer token.
 
-**Acceso al chat (auth)**: solo si `Auth:Enabled`. Dos vías: **Google** (OIDC + lista blanca) y **login local** (usuario/contraseña contra `app.usuarios`, SIN lista blanca). `AuthEndpoints` (`/auth/login/google`, `POST /auth/login`, `/auth/signout`, `/auth/me`, `/auth/denegado`). Google usa `AddOpenIdConnect` (paquete `Microsoft.AspNetCore.Authentication.OpenIdConnect` 10.0.11; ya no va en el shared framework) y se registra solo con credenciales. `AuthRegistration.ValidarListaBlancaAsync` en `OnTokenValidated` valida el email (claim `email`) contra `IUsuarioPermitidoStore` (Postgres `app.usuarios_permitidos` o InMemory); fuera de lista ⇒ `context.Fail` ⇒ redirect a `DenegadoPath`. El login local verifica BCrypt (`BCrypt.Net.BCrypt.Verify`) contra `IUsuarioLocalStore` (Postgres `app.usuarios` o InMemory); fallo ⇒ 401 `credenciales_invalidas`; entra en los `proveedores` si `Auth:LocalLoginHabilitado`. Ambos emiten la cookie httpOnly `rag.session` SameSite=Lax; `OnRedirectToLogin` devuelve 401/403 en `/api` (nunca redirect para fetch). `/api/conversations` porta `group.RequireAuthorization()`; el resto queda abierto (alcance decidido). El frontend llama `api.me()` al montar y escucha el evento `rag:no-autorizado` (emitido ante 401) para volver a login. Crear usuarios locales con `dotnet run --project backend/tools/CrearUsuario -- --connection "$RAG_POSTGRES" --usuario ...`. Microsoft quedó fuera del alcance.
+**Acceso al chat (auth)**: solo si `Auth:Enabled`. Dos vías: **Google** (OIDC + lista blanca) y **login local** (usuario/contraseña contra `app.usuarios`, SIN lista blanca). `AuthEndpoints` (`/auth/login/google`, `POST /auth/login`, `/auth/signout`, `/auth/me`, `/auth/denegado`). Google usa `AddOpenIdConnect` (paquete `Microsoft.AspNetCore.Authentication.OpenIdConnect` 10.0.11; ya no va en el shared framework) y se registra solo con credenciales. `AuthRegistration.ValidarListaBlancaAsync` en `OnTokenValidated` valida el email (claim `email`) contra `IUsuarioPermitidoStore` (Postgres `app.usuarios_permitidos` o InMemory); fuera de lista ⇒ `context.Fail` ⇒ redirect a `DenegadoPath`. El login local verifica BCrypt (`BCrypt.Net.BCrypt.Verify`) contra `IUsuarioLocalStore` (Postgres `app.usuarios` o InMemory); fallo ⇒ 401 `credenciales_invalidas`; entra en los `proveedores` si `Auth:LocalLoginHabilitado`. Ambos emiten la cookie httpOnly `rag.session` SameSite=Lax; `OnRedirectToLogin` devuelve 401/403 en `/api` (nunca redirect para fetch). `/api/conversations` porta `group.RequireAuthorization()`; los *escritas* de `/api/documents|folders` llevan política `equipo` y `/api/usuarios` lleva `superusuario` (todo condicionado a `Auth:Enabled`; la lectura de documentos queda abierta). El frontend llama `api.me()` al montar y escucha el evento `rag:no-autorizado` (emitido ante 401) para volver a login. Crear usuarios locales con `dotnet run --project backend/tools/CrearUsuario -- --connection "$RAG_POSTGRES" --usuario ... --rol ...`. Microsoft quedó fuera del alcance.
+
+**Roles** (valor en `app.usuarios.rol`; solo el login local emite el claim `rag:rol`; el flujo Google entra siempre `usuario`): `usuario` (solo chat + historial propio) · `teamleader` (además sube/borra documentos y gestiona carpetas: política `equipo` en upload/DELETE/PATCH-documento y POST/DELETE-carpeta, más `ExigirDominioGestionado` por dominio) · `superusuario` (además `GET|POST/PATCH/DELETE /api/usuarios`: listar/alta/edición/borrado, y `GET|POST/PATCH/DELETE /api/usuarios-permitidos`: lista blanca Google). **Dominios de teamleader** (`app.usuarios.dominios text[]`, claim `rag:dominios`; lista vacía = todos; al crear/ascender sin dominios se asignan todos): acotan SOLO la gestión (upload/DELETE/mover/carpetas → 403 `dominio_no_permitido` fuera de lista); lectura y chat sin restringir. El superusuario siempre tiene todos. Los dominios viajan en la cookie: cambios aplican al siguiente login (igual que el rol). No se puede borrar el propio usuario (`usuario_propio`) ni el último superusuario activo (`ultimo_superusuario`). `POST /auth/login` y `/auth/me` devuelven `rol` + `dominios`; el frontend gatea la pestaña «documentos» y el botón «Usuarios» con `puedeGestionarDocumentos` / `esSuperUsuario`, y la subida/borrado por dominio con `puedeGestionarDominio` (sin auth configurada = acceso completo). **Lista blanca Google** (`app.usuarios_permitidos`, endpoints `UsuariosPermitidosEndpoints` bajo política `superusuario`): entrada = email exacto O dominio (nunca ambos; 400 `entrada_invalida`, 409 `entrada_duplicada`); valor inmutable (solo `activo` editable, borrado con 404 si no existe). El panel `AdminUsuarios` la muestra en pestaña «Lista blanca Google» solo si `google` está en `proveedoresDisponibles`; siembra inicial desde `Auth:WhitelistEmails|Domains` (`ListaBlancaSeeder`). **Historial privado**: `app.conversaciones.usuario_id` = claim `rag:email` normalizado (email para Google, email o usuario para local); cada usuario lista/abre solo sus conversaciones (`IConversationStore.ListAsync(tituloContiene, usuarioId)` + `VerificarAcceso` en los handlers → 404 si no es suya). **Migraciones del esquema `app`**: `scripts/postgres/schema.sql` solo corre con volumen vacío; los cambios posteriores viven como `ADD COLUMN IF NOT EXISTS` en el propio script (antes de los índices que usan las columnas) y en `SchemaMigrator` (`RAG.Infrastructure/Data`), que el API ejecuta al arrancar con proveedor PostgreSql (idempotente, no bloquea el arranque).
 
 ## Trampas conocidas (muerde una vez, aprende para siempre)
 

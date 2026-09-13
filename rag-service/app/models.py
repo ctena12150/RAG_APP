@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+NOMBRE_ESTADO = {0: "pendiente", 1: "procesando", 2: "listo", 3: "error"}
+
 
 @dataclass(slots=True)
 class Segmento:
@@ -43,6 +45,7 @@ class Hit:
             "texto": self.texto,
             "pagina": self.pagina,
             "seccion": self.seccion,
+            "puntuacion": round(self.puntuacion, 4),
         }
 
     @classmethod

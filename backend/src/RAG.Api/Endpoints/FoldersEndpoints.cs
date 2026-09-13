@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
+using RAG.Api.Configuration;
 using RAG.Api.Middleware;
 using RAG.Domain.Interfaces;
 using RAG.Domain.Models;
@@ -7,13 +9,19 @@ namespace RAG.Api.Endpoints;
 
 public static class FoldersEndpoints
 {
-    public static IEndpointRouteBuilder MapFolders(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapFolders(this IEndpointRouteBuilder app, bool habilitarRoles = false)
     {
         var group = app.MapGroup("/api/folders").WithTags("Carpetas");
 
+        // crear/borrar carpetas gestiona documentos → rol de equipo cuando hay auth
         group.MapGet("/", ListAsync);
-        group.MapPost("/", CreateAsync);
-        group.MapDelete("/{id:guid}", DeleteAsync);
+        var crear = group.MapPost("/", CreateAsync);
+        var borrar = group.MapDelete("/{id:guid}", DeleteAsync);
+        if (habilitarRoles)
+        {
+            crear.RequireAuthorization(AuthRegistration.PoliticaEquipo);
+            borrar.RequireAuthorization(AuthRegistration.PoliticaEquipo);
+        }
 
         return app;
     }
@@ -27,7 +35,7 @@ public static class FoldersEndpoints
     }
 
     private static async Task<Results<Created<Folder>, BadRequest<ControlledException>>> CreateAsync(
-        CreateFolderRequest body, IFolderStore folders, CancellationToken ct)
+        CreateFolderRequest body, ClaimsPrincipal user, IFolderStore folders, CancellationToken ct)
     {
         var nombre = body.Nombre?.Trim() ?? "";
         if (nombre.Length == 0 || nombre.Length > 100)
@@ -36,18 +44,19 @@ public static class FoldersEndpoints
         if (!Dominios.EsValido(body.Dominio))
             throw new ControlledException("dominio_invalido", StatusCodes.Status400BadRequest,
                 $"Dominio '{body.Dominio}' no válido.");
+        AuthRegistration.ExigirDominioGestionado(user, body.Dominio!.Trim().ToLowerInvariant());
 
         var folder = new Folder { Id = Guid.NewGuid(), Nombre = nombre, Dominio = body.Dominio.Trim().ToLowerInvariant(), CreadoUtc = DateTime.UtcNow };
         await folders.CreateAsync(folder, ct);
         return TypedResults.Created($"/api/folders", folder);
     }
 
-    private static async Task<NoContent> DeleteAsync(Guid id, IFolderStore folders, IDocumentStore documents, CancellationToken ct)
+    private static async Task<NoContent> DeleteAsync(Guid id, ClaimsPrincipal user, IFolderStore folders, IDocumentStore documents, CancellationToken ct)
     {
-        _ = await folders.FindByIdAsync(id, ct) ?? throw new KeyNotFoundException($"Carpeta {id} no existe.");
+        var folder = await folders.FindByIdAsync(id, ct) ?? throw new KeyNotFoundException($"Carpeta {id} no existe.");
+        AuthRegistration.ExigirDominioGestionado(user, folder.Dominio);
         // las carpetas son una capa organizativa: los documentos pasan a "sin categoría"
-        foreach (var doc in await documents.ListAsync(folderId: id, ct: ct))
-            await documents.SetFolderAsync(doc.Id, null, ct);
+        await documents.UnassignFolderAsync(id, ct);
         await folders.DeleteAsync(id, ct);
         return TypedResults.NoContent();
     }

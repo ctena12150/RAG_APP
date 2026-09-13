@@ -58,6 +58,15 @@ public sealed class PostgreSqlMessageStore(IDbConnectionFactory factory) : IMess
         return rows.ToList();
     }
 
+    public async Task<IReadOnlyList<Message>> ListRecientesAsync(Guid conversationId, int limite, CancellationToken ct = default)
+    {
+        var sql = SelectMessage + " WHERE conversacion_id = @conversationId ORDER BY creado_utc DESC, id DESC LIMIT @limite";
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = (await conn.QueryAsync<Message>(new CommandDefinition(sql, new { conversationId, limite }, cancellationToken: ct))).ToList();
+        rows.Reverse();
+        return rows;
+    }
+
     public async Task ApplyVerificationAsync(Guid id, string verificacionJson, string? revisionContenido, CancellationToken ct = default)
     {
         const string sql = """
@@ -71,15 +80,16 @@ public sealed class PostgreSqlMessageStore(IDbConnectionFactory factory) : IMess
         if (rows == 0) throw new KeyNotFoundException($"Mensaje {id} no existe.");
     }
 
-    public async Task ApplyRevisionAsync(Guid id, string revisionContenido, CancellationToken ct = default)
+    public async Task<string> ApplyRevisionAsync(Guid id, string revisionContenido, CancellationToken ct = default)
     {
         const string sql = """
             UPDATE app.mensajes
             SET contenido = @revisionContenido, revision_contenido = NULL
             WHERE id = @id
+            RETURNING contenido
             """;
         await using var conn = await factory.OpenAsync(ct);
-        var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { id, revisionContenido }, cancellationToken: ct));
-        if (rows == 0) throw new KeyNotFoundException($"Mensaje {id} no existe.");
+        var contenido = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(sql, new { id, revisionContenido }, cancellationToken: ct));
+        return contenido ?? throw new KeyNotFoundException($"Mensaje {id} no existe.");
     }
 }
