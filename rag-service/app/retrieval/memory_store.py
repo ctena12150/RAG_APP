@@ -20,10 +20,16 @@ def _tokens(texto: str) -> list[str]:
 
 
 class MemoryRagStore:
-    def __init__(self) -> None:
+    def __init__(self, dominios: list[dict] | None = None) -> None:
         self._lock = threading.Lock()
         self._chunks: list[dict] = []
         self._documentos: dict[str, dict] = {}
+        self._dominios: list[dict] = dominios if dominios is not None else [
+            {"clave": "rrhh", "etiqueta": "Recursos Humanos", "descripcion": "Nóminas, vacaciones, beneficios, políticas de personal"},
+            {"clave": "mantenimiento", "etiqueta": "Mantenimiento", "descripcion": "Manuales técnicos, procedimientos de equipos, calibraciones"},
+            {"clave": "onboarding", "etiqueta": "Onboarding", "descripcion": "Alta de empleados, checklist, formación inicial"},
+            {"clave": "it", "etiqueta": "IT", "descripcion": "Sistemas, accesos, incidencias y soporte tecnológico"},
+        ]
 
     async def conectar(self) -> None:  # paridad de API con Postgres
         return None
@@ -145,6 +151,10 @@ class MemoryRagStore:
                 if d.get("estado") == 2 and (not dominios or d["dominio"] in dominios)
             ]
         return len(docs)
+
+    async def listar_dominios(self) -> list[dict]:
+        with self._lock:
+            return [dict(d) for d in self._dominios]
 
     async def metadatos_documentos(self) -> list[dict]:
         with self._lock:

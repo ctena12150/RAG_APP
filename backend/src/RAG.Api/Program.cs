@@ -38,6 +38,7 @@ if (storage.Provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
     builder.Services.AddScoped<IMessageStore, PostgreSqlMessageStore>();
     builder.Services.AddScoped<IUsuarioPermitidoStore, PostgreSqlUsuarioPermitidoStore>();
     builder.Services.AddScoped<IUsuarioLocalStore, PostgreSqlUsuarioLocalStore>();
+    builder.Services.AddScoped<IDominioStore, PostgreSqlDominioStore>();
 }
 else
 {
@@ -47,6 +48,7 @@ else
     builder.Services.AddSingleton<IMessageStore, InMemoryMessageStore>();
     builder.Services.AddSingleton<IUsuarioPermitidoStore>(new InMemoryUsuarioPermitidoStore());
     builder.Services.AddSingleton<IUsuarioLocalStore>(new InMemoryUsuarioLocalStore());
+    builder.Services.AddSingleton<IDominioStore, InMemoryDominioStore>();
 }
 
 builder.Services.AddSingleton<TextExtractorResolver>(_ => new TextExtractorResolver(
@@ -149,6 +151,7 @@ app.MapQuery();
 app.MapConversations(exigirAuth: auth.Enabled);
 app.MapUsuarios(habilitarAdmin: auth.Enabled);
 app.MapUsuariosPermitidos(habilitarAdmin: auth.Enabled);
+app.MapDominios(habilitarAdmin: auth.Enabled);
 app.MapAuth(auth);
 
 app.Run();

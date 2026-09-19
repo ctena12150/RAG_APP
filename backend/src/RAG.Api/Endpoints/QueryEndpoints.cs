@@ -25,6 +25,7 @@ public static class QueryEndpoints
         AskStatelessRequest body,
         HttpResponse response,
         IDocumentStore documents,
+        IDominioStore dominios,
         RagChatRelay relay,
         CancellationToken ct)
     {
@@ -37,7 +38,7 @@ public static class QueryEndpoints
             throw new ControlledException("sin_documentos", StatusCodes.Status409Conflict,
                 "Todavía no hay documentos indexados. Sube un documento antes de consultar.");
 
-        var dominios = ConversationsEndpoints.ValidarDominios(body.Dominios);
+        var dominiosValidados = await ConversationsEndpoints.ValidarDominios(dominios, body.Dominios, ct);
         IReadOnlyList<Guid>? documentIds = body.DocumentosIds;
 
         response.StatusCode = StatusCodes.Status200OK;
@@ -48,7 +49,7 @@ public static class QueryEndpoints
         var request = new RagChatRequest(
             Question: body.Pregunta.Trim(),
             History: [],
-            Dominios: dominios is { Count: > 0 } ? dominios : null,
+            Dominios: dominiosValidados is { Count: > 0 } ? dominiosValidados : null,
             DocumentIds: documentIds is { Count: > 0 } ? documentIds : null,
             Mode: string.IsNullOrWhiteSpace(body.Mode) ? "auto" : body.Mode.Trim(),
             OverridesRetrieval: body.OverridesRetrieval is { Count: > 0 } ? body.OverridesRetrieval : null,

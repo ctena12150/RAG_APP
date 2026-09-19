@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import AliasChoices, BaseModel, Field
 
 from app.chunking.chunker import chunkear
-from app.config import DOMINIOS, Settings
+from app.config import Settings
 from app.core.errors import RagError, traducir_excepcion_proveedor
 from app.models import Segmento
 
@@ -108,10 +108,12 @@ def crear_router(contenedor) -> APIRouter:
             raise HTTPException(status_code=401, detail="Clave interna ausente o inválida.")
 
     async def _ingesta(request: IngestRequest) -> dict:
-        if request.dominio not in DOMINIOS:
+        catalogo = await contenedor.engine.listar_dominios()
+        validos = {str(d.get("clave", "")) for d in catalogo}
+        if request.dominio not in validos:
             raise HTTPException(
                 status_code=400,
-                detail=f"Dominio '{request.dominio}' no válido. Permitidos: {', '.join(DOMINIOS)}",
+                detail=f"Dominio '{request.dominio}' no válido.",
             )
         segmentos = [Segmento(page=s.page, text=s.text) for s in request.segmentos]
         texto_total = "\n".join(s.text for s in segmentos)

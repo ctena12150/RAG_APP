@@ -5,11 +5,14 @@ import { useApp } from "../state/AppContext";
 import MessageBubble from "./MessageBubble";
 import { api } from "../lib/api";
 import { useDictado, soportaDictado } from "../lib/voz";
-import { DOMINIOS, ETIQUETA_DOMINIO, type Dominio, type ModeloDisponible, type NivelRazonamiento } from "../lib/types";
+import type { Dominio, ModeloDisponible, NivelRazonamiento } from "../lib/types";
 
 /** Panel central de chat: mensajes, composer y estado vacío con forma de onda. */
 export default function ChatPanel() {
-  const { chat, preguntar, detenerGeneracion, conversacionActiva, documentos } = useApp();
+  const { chat, preguntar, detenerGeneracion, conversacionActiva, documentos, dominios: dominiosCtx, etiquetaDominio: etiquetaCtx } = useApp();
+  const dominios = dominiosCtx ?? [];
+  const etiquetaDominio = etiquetaCtx ?? ((c: string) => c);
+  const clavesDominios = dominios.map((d) => d.clave).join(",");
   const [texto, setTexto] = useState("");
   const [modelos, setModelos] = useState<ModeloDisponible[]>([]);
   const [modelo, setModelo] = useState(() => localStorage.getItem("rag-modelo") ?? "");
@@ -21,12 +24,20 @@ export default function ChatPanel() {
   );
   const [dominiosChat, setDominiosChat] = useState<Dominio[]>(() => {
     try {
-      const guardados = JSON.parse(localStorage.getItem("rag-dominios-chat") ?? "[]") as string[];
-      return guardados.filter((d): d is Dominio => (DOMINIOS as string[]).includes(d));
+      return JSON.parse(localStorage.getItem("rag-dominios-chat") ?? "[]") as string[];
     } catch {
       return [];
     }
   });
+
+  useEffect(() => {
+    const claves = new Set(clavesDominios ? clavesDominios.split(",") : []);
+    setDominiosChat((prev) => {
+      const filtrados = prev.filter((d) => claves.has(d));
+      if (filtrados.length !== prev.length) localStorage.setItem("rag-dominios-chat", JSON.stringify(filtrados));
+      return filtrados;
+    });
+  }, [clavesDominios]);
 
   const alternarDominioChat = (d: Dominio | "todas") => {
     setDominiosChat((prev) => {
@@ -216,7 +227,7 @@ export default function ChatPanel() {
           <span className="text-[11px]" style={{ color: "var(--ink-soft)" }}>
             Buscar en:
           </span>
-          {(["todas" as const, ...DOMINIOS] as const).map((d) => {
+          {(["todas" as const, ...dominios.map((d) => d.clave)] as const).map((d) => {
             const activo = d === "todas" ? dominiosChat.length === 0 : dominiosChat.includes(d);
             return (
               <button
@@ -231,7 +242,7 @@ export default function ChatPanel() {
                   background: activo ? "color-mix(in oklab, var(--accent-a) 10%, transparent)" : undefined,
                 }}
               >
-                {d === "todas" ? "Todas" : ETIQUETA_DOMINIO[d]}
+                {d === "todas" ? "Todas" : etiquetaDominio(d)}
               </button>
             );
           })}
@@ -259,7 +270,7 @@ export default function ChatPanel() {
               }}
               rows={1}
               placeholder={
-                conversacionActiva ? "Escribe tu pregunta…" : "Pregunta sobre RRHH, mantenimiento u onboarding…"
+                conversacionActiva ? "Escribe tu pregunta…" : "Pregunta sobre tus documentos…"
               }
               className="max-h-40 w-full resize-none bg-transparent outline-none"
               style={{ color: "var(--ink)" }}
@@ -308,7 +319,7 @@ function EstadoVacio({ conDocumentos }: { conDocumentos: boolean }) {
       <p className="mt-2 max-w-md text-sm theme-ink-soft">
         {conDocumentos
           ? "Pregunta en lenguaje natural. El director decidirá qué agente especializado consultar."
-          : "Sube un documento en las pestañas de Recursos Humanos, Mantenimiento u Onboarding para empezar."}
+          : "Sube un documento en la pestaña de documentos para empezar."}
       </p>
     </div>
   );

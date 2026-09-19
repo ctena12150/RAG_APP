@@ -36,7 +36,7 @@ public static class UsuariosEndpoints
     }
 
     private static async Task<Results<Created<UsuarioDto>, BadRequest<ControlledException>, Conflict<ControlledException>>> CrearAsync(
-        CrearUsuarioRequest body, IUsuarioLocalStore store, CancellationToken ct)
+        CrearUsuarioRequest body, IUsuarioLocalStore store, IDominioStore dominios, CancellationToken ct)
     {
         var usuario = body.Usuario?.Trim();
         var contrasena = body.Contrasena;
@@ -56,9 +56,7 @@ public static class UsuariosEndpoints
             throw new ControlledException("usuario_duplicado", StatusCodes.Status409Conflict,
                 $"Ya existe un usuario llamado '{usuario}'.");
 
-        var dominios = ValidarDominios(body.Dominios);
-        if (rol == Roles.TeamLeader && dominios.Count == 0)
-            dominios = [.. Dominios.Todos];
+        var dominiosValidados = await ValidarDominios(dominios, body.Dominios, ct);
 
         var nuevo = await store.CrearAsync(new UsuarioLocal
         {
@@ -68,7 +66,7 @@ public static class UsuariosEndpoints
             Email = NormalizarOpcional(body.Email),
             Nombre = NormalizarOpcional(body.Nombre),
             Rol = rol,
-            Dominios = [.. dominios],
+            Dominios = [.. dominiosValidados],
             Activo = true,
             CreadoUtc = DateTime.UtcNow
         }, ct);
@@ -77,7 +75,7 @@ public static class UsuariosEndpoints
     }
 
     private static async Task<Ok<UsuarioDto>> ActualizarAsync(
-        Guid id, ActualizarUsuarioRequest body, IUsuarioLocalStore store, CancellationToken ct)
+        Guid id, ActualizarUsuarioRequest body, IUsuarioLocalStore store, IDominioStore dominioStore, CancellationToken ct)
     {
         var actual = await store.ObtenerPorIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Usuario {id} no existe.");
@@ -105,17 +103,15 @@ public static class UsuariosEndpoints
             hash = BCrypt.Net.BCrypt.HashPassword(body.Contrasena);
         }
 
-        var dominios = actual.Dominios;
+        var dominiosActual = actual.Dominios;
         if (body.Dominios is not null)
-            dominios = [.. ValidarDominios(body.Dominios)];
-        if (rol == Roles.TeamLeader && dominios.Length == 0 && body.Dominios is null && actual.Rol != Roles.TeamLeader)
-            dominios = [.. Dominios.Todos];
+            dominiosActual = [.. await ValidarDominios(dominioStore, body.Dominios, ct)];
         if (rol != Roles.TeamLeader)
-            dominios = [];
+            dominiosActual = [];
 
         actual.Rol = rol;
         actual.PasswordHash = hash;
-        actual.Dominios = dominios;
+        actual.Dominios = dominiosActual;
         actual.Activo = body.Activo ?? actual.Activo;
         if (body.Email is not null) actual.Email = NormalizarOpcional(body.Email);
         if (body.Nombre is not null) actual.Nombre = NormalizarOpcional(body.Nombre);
@@ -151,14 +147,14 @@ public static class UsuariosEndpoints
         return TypedResults.NoContent();
     }
 
-    private static IReadOnlyList<string> ValidarDominios(IReadOnlyList<string>? dominios)
+    private static async Task<IReadOnlyList<string>> ValidarDominios(IDominioStore store, IReadOnlyList<string>? dominios, CancellationToken ct)
     {
         if (dominios is not { Count: > 0 }) return [];
         var normalizados = dominios.Select(d => d.Trim().ToLowerInvariant()).Distinct().ToList();
         foreach (var d in normalizados)
-            if (!Dominios.EsValido(d))
+            if (await store.ObtenerPorClaveAsync(d, ct) is null)
                 throw new ControlledException("dominio_invalido", StatusCodes.Status400BadRequest,
-                    $"Dominio '{d}' no válido. Valores permitidos: {string.Join(", ", Dominios.Todos)}.");
+                    $"Dominio '{d}' no válido.");
         return normalizados;
     }
 

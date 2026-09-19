@@ -162,7 +162,7 @@ internal static class AuthRegistration
             new(ClaimProveedor, ProveedorLocal),
             new(ClaimRol, Roles.EsValido(usuario.Rol) ? usuario.Rol.Trim().ToLowerInvariant() : Roles.Usuario)
         };
-        foreach (var dominio in DominiosEfectivos(usuario.Rol, usuario.Dominios))
+        foreach (var dominio in DominiosEfectivos(usuario.Rol, usuario.Dominios) ?? [])
             claims.Add(new Claim(ClaimDominios, dominio));
         if (!string.IsNullOrWhiteSpace(usuario.Nombre))
             claims.Add(new Claim(ClaimNombre, usuario.Nombre));
@@ -170,16 +170,16 @@ internal static class AuthRegistration
     }
 
     /// <summary>
-    /// Dominios que un rol gestiona. El superusuario siempre los tiene todos; el teamleader
-    /// sin dominios asignados también (lista vacía = todos). Solo el teamleader con lista
-    /// explícita queda acotado. El rol usuario no gestiona ningún dominio.
+    /// Dominios que un rol gestiona. Null = sin restricción (superusuario o teamleader
+    /// con lista vacía = todos). Solo el teamleader con lista explícita queda acotado.
+    /// El rol usuario no gestiona ningún dominio (lista vacía).
     /// </summary>
-    internal static IReadOnlyList<string> DominiosEfectivos(string? rol, string[]? dominios)
+    internal static IReadOnlyList<string>? DominiosEfectivos(string? rol, string[]? dominios)
     {
         var normalizado = Roles.EsValido(rol) ? rol!.Trim().ToLowerInvariant() : Roles.Usuario;
-        if (normalizado == Roles.SuperUsuario) return Dominios.Todos;
+        if (normalizado == Roles.SuperUsuario) return null;
         if (normalizado == Roles.TeamLeader)
-            return dominios is { Length: > 0 } ? dominios : Dominios.Todos;
+            return dominios is { Length: > 0 } ? dominios.Select(d => d.Trim().ToLowerInvariant()).Distinct().ToList() : null;
         return [];
     }
 

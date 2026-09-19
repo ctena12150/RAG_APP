@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useApp } from "../state/AppContext";
-import { DOMINIOS, ETIQUETA_DOMINIO, type Documento, type Dominio } from "../lib/types";
+import type { Documento, Dominio } from "../lib/types";
 
 type Pestana = "conversaciones" | "documentos";
 
@@ -9,6 +9,8 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
   const {
     dominioActivo,
     setDominioActivo,
+    dominios: dominiosCtx,
+    etiquetaDominio: etiquetaCtx,
     documentos,
     folders,
     crearFolder,
@@ -42,15 +44,19 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
 
   // teamleader acotado: solo ve sus dominios, sin la pill "Todas"
   // (?? null: los mocks de tests antiguos no traen la prop y equivalen a acceso total)
+  const dominios = dominiosCtx ?? [];
+  const etiquetaDominio = etiquetaCtx ?? ((c: string) => c);
+  const clavesStr = dominios.map((d) => d.clave).join(",");
   const gestionables: Dominio[] | null = dominiosGestionables ?? null;
+  const claves = dominios.map((d) => d.clave);
   const dominiosVisibles: (Dominio | "todas")[] =
-    gestionables === null ? [...DOMINIOS, "todas" as const] : gestionables;
+    gestionables === null ? [...claves, "todas" as const] : gestionables.filter((g) => claves.includes(g));
 
   useEffect(() => {
     if (gestionables !== null && !gestionables.includes(dominioActivo as Dominio)) {
-      setDominioActivo(gestionables[0] ?? "rrhh");
+      setDominioActivo(gestionables[0] ?? dominios[0]?.clave ?? "todas");
     }
-  }, [gestionables, dominioActivo, setDominioActivo]);
+  }, [gestionables, dominioActivo, setDominioActivo, clavesStr]);
 
   const docsDelDominio = useMemo(
     () =>
@@ -170,7 +176,7 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
                   color: dominioActivo === d ? "var(--accent-a)" : "var(--ink-soft)",
                 }}
               >
-                {d === "todas" ? "Todas" : ETIQUETA_DOMINIO[d]}
+                {d === "todas" ? "Todas" : etiquetaDominio(d)}
               </button>
             ))}
           </div>
@@ -278,7 +284,7 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
 
           {dominioActivo !== "todas" && (
             <div className="mb-1 mt-3 flex items-center gap-1 text-xs theme-ink-soft">
-              {ETIQUETA_DOMINIO[dominioActivo]}
+              {etiquetaDominio(dominioActivo)}
             </div>
           )}
 

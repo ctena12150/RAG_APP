@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Search, X } from "lucide-react";
 import { useApp } from "../state/AppContext";
-import { DOMINIOS, ETIQUETA_DOMINIO, ETIQUETA_ROL, type Dominio, type UsuarioAdmin, type UsuarioPermitido } from "../lib/types";
+import { ETIQUETA_ROL, type DominioInfo, type UsuarioAdmin, type UsuarioPermitido } from "../lib/types";
 import DialogoUsuario from "./DialogoUsuario";
 import DialogoPermitido from "./DialogoPermitido";
+import DialogoDominio from "./DialogoDominio";
 
-type Pestana = "usuarios" | "permitidos";
+type Pestana = "usuarios" | "permitidos" | "dominios";
 
 /**
  * Panel de administración (solo superusuario) con dos pestañas: cuentas locales
@@ -67,9 +68,8 @@ export default function AdminUsuarios({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {conGoogle && (
-          <div className="flex gap-1 border-b px-6 pt-3" style={{ borderColor: "var(--line)" }} role="tablist">
-            {(["usuarios", "permitidos"] as Pestana[]).map((p) => (
+        <div className="flex gap-1 border-b px-6 pt-3" style={{ borderColor: "var(--line)" }} role="tablist">
+          {(conGoogle ? (["usuarios", "permitidos", "dominios"] as Pestana[]) : (["usuarios", "dominios"] as Pestana[])).map((p) => (
               <button
                 key={p}
                 type="button"
@@ -83,15 +83,15 @@ export default function AdminUsuarios({ onClose }: { onClose: () => void }) {
                     : { color: "var(--ink-soft)" }
                 }
               >
-                {p === "usuarios" ? "Usuarios locales" : "Lista blanca Google"}
+                {p === "usuarios" ? "Usuarios locales" : p === "permitidos" ? "Lista blanca Google" : "Dominios"}
               </button>
             ))}
-          </div>
-        )}
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {(!conGoogle || pestana === "usuarios") && <TablaUsuarios />}
-          {conGoogle && pestana === "permitidos" && <TablaPermitidos />}
+          {pestana === "usuarios" && <TablaUsuarios />}
+          {pestana === "permitidos" && <TablaPermitidos />}
+          {pestana === "dominios" && <TablaDominios />}
         </div>
       </motion.div>
     </div>
@@ -128,7 +128,9 @@ function etiquetaRol(rol: UsuarioAdmin["rol"]) {
 
 /** Pestaña de cuentas locales: tabla con buscador, alta y edición en diálogo. */
 function TablaUsuarios() {
-  const { listarUsuarios, actualizarUsuario, borrarUsuario } = useApp();
+  const { listarUsuarios, actualizarUsuario, borrarUsuario, etiquetaDominio: etiquetaCtx, dominios: dominiosCtx } = useApp();
+  const etiquetaDominio = etiquetaCtx ?? ((c: string) => c);
+  const dominios = dominiosCtx ?? [];
 
   const [usuarios, setUsuarios] = useState<UsuarioAdmin[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -152,12 +154,12 @@ function TablaUsuarios() {
     const q = busqueda.trim().toLowerCase();
     if (!q || !usuarios) return usuarios ?? [];
     return usuarios.filter((u) =>
-      [u.usuario, u.nombre ?? "", u.email ?? "", ETIQUETA_ROL[u.rol], ...u.dominios.map((d) => ETIQUETA_DOMINIO[d as Dominio])]
+      [u.usuario, u.nombre ?? "", u.email ?? "", ETIQUETA_ROL[u.rol], ...u.dominios.map((d) => etiquetaDominio(d))]
         .join(" ")
         .toLowerCase()
         .includes(q),
     );
-  }, [usuarios, busqueda]);
+  }, [usuarios, busqueda, etiquetaDominio]);
 
   const cambiarActivo = async (u: UsuarioAdmin, activo: boolean) => {
     try {
@@ -223,7 +225,7 @@ function TablaUsuarios() {
                   </p>
                   {u.rol === "teamleader" && (
                     <p className="mt-0.5 truncate text-[11px]" style={{ color: "var(--accent-a)" }}>
-                      {(u.dominios.length > 0 ? u.dominios : DOMINIOS).map((d) => ETIQUETA_DOMINIO[d]).join(" · ")}
+                      {(u.dominios.length > 0 ? u.dominios : dominios.map((d) => d.clave)).map((d) => etiquetaDominio(d)).join(" · ")}
                     </p>
                   )}
                 </div>
@@ -438,6 +440,114 @@ function TablaPermitidos() {
         <DialogoPermitido
           onGuardado={(entrada) => setEntradas((lista) => [...(lista ?? []), entrada])}
           onClose={() => setDialogoAbierto(false)}
+          onError={setError}
+        />
+      )}
+    </div>
+  );
+}
+
+function TablaDominios() {
+  const { dominios: dominiosCtx, refrescarDominios, borrarDominio } = useApp();
+  const dominios = dominiosCtx ?? [];
+  const [error, setError] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [dialogo, setDialogo] = useState<{ abierto: boolean; dominio: DominioInfo | null }>({ abierto: false, dominio: null });
+  const [borrandoClave, setBorrandoClave] = useState<string | null>(null);
+
+  useEffect(() => {
+    void Promise.resolve(refrescarDominios()).catch(() => setError("No se pudo cargar los dominios."));
+  }, [refrescarDominios]);
+
+  const filtrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return dominios;
+    return dominios.filter((d) => `${d.clave} ${d.etiqueta} ${d.descripcion ?? ""}`.toLowerCase().includes(q));
+  }, [dominios, busqueda]);
+
+  const eliminar = async (d: DominioInfo) => {
+    setError(null);
+    try {
+      await borrarDominio(d.clave);
+      setBorrandoClave(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el dominio.");
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex-1">
+          <Buscador valor={busqueda} onCambio={setBusqueda} etiqueta="Buscar por clave, etiqueta o descripción…" />
+        </div>
+        <button
+          type="button"
+          onClick={() => setDialogo({ abierto: true, dominio: null })}
+          className="btn-accent-a mb-3 shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold cursor-pointer"
+        >
+          + Nuevo dominio
+        </button>
+      </div>
+      {error && (
+        <p className="mb-2 text-xs" role="alert" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
+      <div className="space-y-1.5">
+        {filtrados.length === 0 ? (
+          <p className="py-6 text-center text-xs" style={{ color: "var(--ink-soft)" }}>
+            {busqueda ? "Sin resultados para esta búsqueda." : "Todavía no hay dominios."}
+          </p>
+        ) : (
+          filtrados.map((d) => (
+            <div key={d.clave}>
+              <div className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--line)" }}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{d.etiqueta}</p>
+                  <p className="truncate text-[11px]" style={{ color: "var(--ink-soft)" }}>
+                    {d.clave}{d.descripcion ? ` · ${d.descripcion}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDialogo({ abierto: true, dominio: d })}
+                  aria-label={`Editar ${d.clave}`}
+                  className="rounded-md border px-2 py-1 text-xs cursor-pointer"
+                  style={{ borderColor: "var(--line)", color: "var(--accent-a)" }}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBorrandoClave(d.clave)}
+                  aria-label={`Eliminar ${d.clave}`}
+                  className="rounded-md border px-2 py-1 text-xs cursor-pointer"
+                  style={{ borderColor: "var(--line)", color: "var(--danger)" }}
+                >
+                  ✕
+                </button>
+              </div>
+              {borrandoClave === d.clave && (
+                <div className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-xs" style={{ border: "1px solid var(--danger)" }}>
+                  <span className="flex-1">¿Eliminar {d.clave}? Se bloquea si tiene documentos, carpetas o usuarios.</span>
+                  <button type="button" onClick={() => void eliminar(d)} className="rounded px-2 py-1 font-semibold text-white" style={{ background: "var(--danger)" }}>
+                    Eliminar
+                  </button>
+                  <button type="button" onClick={() => setBorrandoClave(null)} className="rounded px-2 py-1" style={{ color: "var(--ink-soft)" }}>
+                    Cancelar
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+      {dialogo.abierto && (
+        <DialogoDominio
+          dominio={dialogo.dominio}
+          onGuardado={() => void refrescarDominios()}
+          onClose={() => setDialogo({ abierto: false, dominio: null })}
           onError={setError}
         />
       )}

@@ -12,7 +12,7 @@ public sealed class Document
 {
     public Guid Id { get; set; }
     public string NombreArchivo { get; set; } = string.Empty;
-    public string Dominio { get; set; } = Dominios.Rrhh;
+    public string Dominio { get; set; } = "rrhh";
     public Guid? FolderId { get; set; }
     public long TamanoBytes { get; set; }
     public string ContentHash { get; set; } = string.Empty;

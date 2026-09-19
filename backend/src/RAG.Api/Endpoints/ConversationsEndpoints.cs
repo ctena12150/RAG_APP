@@ -30,14 +30,14 @@ public static class ConversationsEndpoints
     }
 
     private static async Task<Created<Conversation>> CreateAsync(
-        CreateConversationRequest body, ClaimsPrincipal user, IConversationStore conversations, CancellationToken ct)
+        CreateConversationRequest body, ClaimsPrincipal user, IConversationStore conversations, IDominioStore dominios, CancellationToken ct)
     {
         var conversation = new Conversation
         {
             Id = Guid.NewGuid(),
             Titulo = string.IsNullOrWhiteSpace(body.Titulo) ? "Nueva conversación" : body.Titulo.Trim(),
             TituloAutomatico = string.IsNullOrWhiteSpace(body.Titulo),
-            Dominios = ValidarDominios(body.Dominios) ?? [],
+            Dominios = await ValidarDominios(dominios, body.Dominios, ct) ?? [],
             DocumentosIds = body.DocumentosIds,
             UsuarioId = DueñoActual(user),
             CreadoUtc = DateTime.UtcNow,
@@ -94,6 +94,7 @@ public static class ConversationsEndpoints
         IConversationStore conversations,
         IMessageStore messages,
         IDocumentStore documents,
+        IDominioStore dominios,
         RagChatRelay relay,
         CancellationToken ct)
     {
@@ -110,7 +111,7 @@ public static class ConversationsEndpoints
             throw new ControlledException("sin_documentos", StatusCodes.Status409Conflict,
                 "Todavía no hay documentos indexados. Sube un documento antes de consultar.");
 
-        var dominios = body.Dominios is { Count: > 0 } ? ValidarDominios(body.Dominios) : conversation.Dominios;
+        var dominiosValidados = body.Dominios is { Count: > 0 } ? await ValidarDominios(dominios, body.Dominios, ct) : conversation.Dominios;
         var documentIds = body.DocumentosIds ?? conversation.DocumentosIds;
 
         var userMessage = await messages.AddAsync(new Message
@@ -139,7 +140,7 @@ public static class ConversationsEndpoints
         var request = new RagChatRequest(
             Question: body.Pregunta.Trim(),
             History: history,
-            Dominios: dominios is { Count: > 0 } ? dominios : null,
+            Dominios: dominiosValidados is { Count: > 0 } ? dominiosValidados : null,
             DocumentIds: documentIds is { Count: > 0 } ? documentIds : null,
             Mode: string.IsNullOrWhiteSpace(body.Mode) ? "auto" : body.Mode.Trim(),
             OverridesRetrieval: body.OverridesRetrieval is { Count: > 0 } ? body.OverridesRetrieval : null,
@@ -191,14 +192,15 @@ public static class ConversationsEndpoints
         }
     }
 
-    internal static IReadOnlyList<string>? ValidarDominios(IReadOnlyList<string>? dominios)
+    internal static async Task<IReadOnlyList<string>?> ValidarDominios(IDominioStore store, IReadOnlyList<string>? dominios, CancellationToken ct = default)
     {
         if (dominios is not { Count: > 0 }) return null;
-        foreach (var d in dominios)
-            if (!Dominios.EsValido(d))
+        var normalizados = dominios.Select(d => d.Trim().ToLowerInvariant()).Distinct().ToList();
+        foreach (var d in normalizados)
+            if (await store.ObtenerPorClaveAsync(d, ct) is null)
                 throw new ControlledException("dominio_invalido", StatusCodes.Status400BadRequest,
-                    $"Dominio '{d}' no válido. Valores permitidos: {string.Join(", ", Dominios.Todos)}.");
-        return [.. dominios.Select(d => d.Trim().ToLowerInvariant())];
+                    $"Dominio '{d}' no válido.");
+        return normalizados;
     }
 
     internal static string DerivarTitulo(string pregunta)

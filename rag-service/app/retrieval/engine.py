@@ -297,6 +297,10 @@ class RetrievalEngine:
         """Metadatos de todos los documentos (solo lo que el Director puede ver)."""
         return await self._store.metadatos_documentos()
 
+    async def listar_dominios(self) -> list[dict]:
+        """Catálogo de dominios desde el almacén (fuente de verdad: app.dominios)."""
+        return await self._store.listar_dominios()
+
     def _confianza(self, contexto: ContextoRetrieval) -> float | None:
         """Mejor score normalizado por el máximo teórico RRF de las listas usadas (0..1)."""
         if not contexto.hits:

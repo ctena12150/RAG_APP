@@ -186,6 +186,22 @@ class PostgresRagStore:
         async with self._pool.acquire() as conn:
             return await conn.fetchval("SELECT count(*) FROM app.documentos WHERE estado = 2")
 
+    async def listar_dominios(self) -> list[dict]:
+        """Catálogo de dominios gestionado por el backend .NET (tabla app.dominios)."""
+        assert self._pool is not None
+        try:
+            async with self._pool.acquire() as conn:
+                filas = await conn.fetch(
+                    "SELECT clave, etiqueta, descripcion FROM app.dominios ORDER BY creado_utc"
+                )
+        except Exception as exc:  # noqa: BLE001 — sin tabla no hay ámbitos válidos
+            logger.warning("No se pudo listar app.dominios (%s); se continúa sin ámbitos", type(exc).__name__)
+            return []
+        return [
+            {"clave": f["clave"], "etiqueta": f["etiqueta"], "descripcion": f["descripcion"] or ""}
+            for f in filas
+        ]
+
     async def metadatos_documentos(self) -> list[dict]:
         """Solo-metadatos: el Director nunca ve el contenido de los chunks."""
         assert self._pool is not None

@@ -41,6 +41,7 @@ public static class DocumentsEndpoints
         ClaimsPrincipal user,
         IDocumentStore documents,
         IFolderStore folders,
+        IDominioStore dominios,
         TextExtractorResolver resolver,
         IngestionQueue queue,
         [FromServices] UploadsOptions uploads,
@@ -59,9 +60,9 @@ public static class DocumentsEndpoints
                 $"El archivo supera el límite de {uploads.MaxSizeBytes / (1024 * 1024)} MB.");
 
         var dominio = form["dominio"].ToString().Trim().ToLowerInvariant();
-        if (!Dominios.EsValido(dominio))
+        if (await dominios.ObtenerPorClaveAsync(dominio, ct) is null)
             throw new ControlledException("dominio_invalido", StatusCodes.Status400BadRequest,
-                $"El dominio '{dominio}' no es válido. Valores permitidos: {string.Join(", ", Dominios.Todos)}.");
+                $"El dominio '{dominio}' no es válido.");
         AuthRegistration.ExigirDominioGestionado(user, dominio);
 
         Guid? folderId = Guid.TryParse(form["folderId"].ToString(), out var parsedFolder) ? parsedFolder : null;
@@ -117,12 +118,13 @@ public static class DocumentsEndpoints
 
     private static async Task<Ok<List<DocumentDto>>> ListAsync(
         IDocumentStore documents,
+        IDominioStore dominios,
         string? dominio,
         Guid? folderId,
         string? q,
         CancellationToken ct)
     {
-        if (dominio is not null && !Dominios.EsValido(dominio))
+        if (dominio is not null && await dominios.ObtenerPorClaveAsync(dominio.Trim().ToLowerInvariant(), ct) is null)
             throw new ControlledException("dominio_invalido", StatusCodes.Status400BadRequest,
                 $"Dominio '{dominio}' no válido.");
 

@@ -115,7 +115,7 @@ def test_listar_documentos_devuelve_metadatos_reales():
     """La herramienta del Director ya no es un no-op: lista documentos del store."""
     contenedor, _emb, _llm, store = contenedor_prueba()
     asyncio.run(seed_documentos(store, "doc-r4", "rrhh", ["Contenido de prueba."]))
-    herramientas, _registro = crear_herramientas(contenedor.engine, contenedor.settings, None, None)
+    herramientas, _registro = asyncio.run(crear_herramientas(contenedor.engine, contenedor.settings, None, None))
     listar = next(h for h in herramientas if getattr(h, "name", "") == "listar_documentos")
 
     resultado = json.loads(asyncio.run(listar.ainvoke({})))

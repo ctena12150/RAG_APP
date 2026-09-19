@@ -1,4 +1,11 @@
-export type Dominio = "rrhh" | "mantenimiento" | "onboarding";
+export type Dominio = string;
+
+export interface DominioInfo {
+  clave: string;
+  etiqueta: string;
+  descripcion?: string | null;
+  creadoUtc?: string;
+}
 
 export interface ModeloDisponible {
   proveedor: "ollama" | "groq";
@@ -9,13 +16,9 @@ export interface ModeloDisponible {
   capacidades: string[];
 }
 
-export const DOMINIOS: Dominio[] = ["rrhh", "mantenimiento", "onboarding"];
-
-export const ETIQUETA_DOMINIO: Record<Dominio, string> = {
-  rrhh: "Recursos Humanos",
-  mantenimiento: "Mantenimiento",
-  onboarding: "Onboarding",
-};
+export function etiquetaDominio(dominios: DominioInfo[], clave: Dominio): string {
+  return dominios.find((d) => d.clave === clave)?.etiqueta ?? clave;
+}
 
 export type EstadoDocumento = "pendiente" | "procesando" | "listo" | "error";
 

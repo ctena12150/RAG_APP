@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from "react";
 import { api, describirAgente, streamChat } from "../lib/api";
 import type { PerfilChat } from "../lib/api";
-import type { Conversacion, Dominio, Documento, Folder, Fuente, MensajeChat, MetricasGeneracion, Rol, TrazaPipeline, Usuario, UsuarioAdmin, UsuarioPermitido, Verificacion } from "../lib/types";
+import type { Conversacion, Dominio, DominioInfo, Documento, Folder, Fuente, MensajeChat, MetricasGeneracion, Rol, TrazaPipeline, Usuario, UsuarioAdmin, UsuarioPermitido, Verificacion } from "../lib/types";
 
 interface EstadoChat {
   mensajes: MensajeChat[];
@@ -77,6 +77,15 @@ interface AppContextValue {
   actualizarPermitido: (id: string, cambios: { activo?: boolean }) => Promise<UsuarioPermitido>;
   borrarPermitido: (id: string) => Promise<void>;
 
+  // catálogo de dominios (fuente de verdad: GET /api/dominios)
+  dominios: DominioInfo[];
+  etiquetaDominio: (clave: Dominio) => string;
+  refrescarDominios: () => Promise<void>;
+  listarDominios: () => Promise<DominioInfo[]>;
+  crearDominio: (datos: { clave: string; etiqueta: string; descripcion?: string | null }) => Promise<DominioInfo>;
+  actualizarDominio: (clave: string, cambios: { etiqueta?: string; descripcion?: string | null }) => Promise<DominioInfo>;
+  borrarDominio: (clave: string) => Promise<void>;
+
   dominioActivo: Dominio | "todas";
   setDominioActivo: (d: Dominio | "todas") => void;
 
@@ -126,6 +135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [proveedoresDisponibles, setProveedoresDisponibles] = useState<string[]>([]);
   const [authCargando, setAuthCargando] = useState(true);
   const [dominioActivo, setDominioActivo] = useState<Dominio | "todas">("rrhh");
+  const [dominios, setDominios] = useState<DominioInfo[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
@@ -232,6 +242,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
   const borrarPermitido = useCallback((id: string) => api.borrarPermitido(id), []);
+
+  const refrescarDominios = useCallback(async () => {
+    try {
+      const lista = await api.listarDominios();
+      setDominios(lista);
+      setDominioActivo((actual) => {
+        if (actual === "todas") return actual;
+        return lista.some((d) => d.clave === actual) ? actual : (lista[0]?.clave ?? actual);
+      });
+    } catch {
+      /* el panel muestra estado vacío */
+    }
+  }, []);
+  const listarDominios = useCallback(() => api.listarDominios(), []);
+  const crearDominio = useCallback(async (datos: Parameters<typeof api.crearDominio>[0]) => {
+    const creado = await api.crearDominio(datos);
+    await refrescarDominios();
+    return creado;
+  }, [refrescarDominios]);
+  const actualizarDominio = useCallback(async (clave: string, cambios: Parameters<typeof api.actualizarDominio>[1]) => {
+    const actualizado = await api.actualizarDominio(clave, cambios);
+    await refrescarDominios();
+    return actualizado;
+  }, [refrescarDominios]);
+  const borrarDominio = useCallback(async (clave: string) => {
+    await api.borrarDominio(clave);
+    await refrescarDominios();
+  }, [refrescarDominios]);
+  const etiquetaDominio = useCallback(
+    (clave: Dominio) => dominios.find((d) => d.clave === clave)?.etiqueta ?? clave,
+    [dominios],
+  );
+
+  useEffect(() => {
+    void refrescarDominios();
+  }, [refrescarDominios]);
 
   // sin proveedores configurados = modo dev sin auth: acceso completo (como hoy)
   const puedeGestionarDocumentos =
@@ -542,6 +588,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       crearPermitido,
       actualizarPermitido,
       borrarPermitido,
+      dominios,
+      etiquetaDominio,
+      refrescarDominios,
+      listarDominios,
+      crearDominio,
+      actualizarDominio,
+      borrarDominio,
       dominioActivo,
       setDominioActivo,
       documentos,
@@ -573,6 +626,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dominiosGestionables, puedeGestionarDominio,
       listarUsuarios, crearUsuario, actualizarUsuario, borrarUsuario,
       listarPermitidos, crearPermitido, actualizarPermitido, borrarPermitido,
+      dominios, etiquetaDominio, refrescarDominios, listarDominios, crearDominio, actualizarDominio, borrarDominio,
       dominioActivo, documentos, folders, refrescarDocumentos,
       subirDocumento, borrarDocumento, crearFolder, borrarFolder, subidaActiva, docResaltado,
       errorSubida, conversaciones, conversacionActiva,

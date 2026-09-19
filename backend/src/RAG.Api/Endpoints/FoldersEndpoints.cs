@@ -26,22 +26,22 @@ public static class FoldersEndpoints
         return app;
     }
 
-    private static async Task<Ok<List<Folder>>> ListAsync(IFolderStore folders, string? dominio, CancellationToken ct)
+    private static async Task<Ok<List<Folder>>> ListAsync(IFolderStore folders, IDominioStore dominios, string? dominio, CancellationToken ct)
     {
-        if (dominio is not null && !Dominios.EsValido(dominio))
+        if (dominio is not null && await dominios.ObtenerPorClaveAsync(dominio.Trim().ToLowerInvariant(), ct) is null)
             throw new ControlledException("dominio_invalido", StatusCodes.Status400BadRequest, $"Dominio '{dominio}' no válido.");
         var result = await folders.ListAsync(dominio, ct);
         return TypedResults.Ok(result.ToList());
     }
 
     private static async Task<Results<Created<Folder>, BadRequest<ControlledException>>> CreateAsync(
-        CreateFolderRequest body, ClaimsPrincipal user, IFolderStore folders, CancellationToken ct)
+        CreateFolderRequest body, ClaimsPrincipal user, IFolderStore folders, IDominioStore dominios, CancellationToken ct)
     {
         var nombre = body.Nombre?.Trim() ?? "";
         if (nombre.Length == 0 || nombre.Length > 100)
             throw new ControlledException("nombre_invalido", StatusCodes.Status400BadRequest,
                 "El nombre de carpeta es obligatorio (máx. 100 caracteres).");
-        if (!Dominios.EsValido(body.Dominio))
+        if (await dominios.ObtenerPorClaveAsync(body.Dominio?.Trim().ToLowerInvariant() ?? "", ct) is null)
             throw new ControlledException("dominio_invalido", StatusCodes.Status400BadRequest,
                 $"Dominio '{body.Dominio}' no válido.");
         AuthRegistration.ExigirDominioGestionado(user, body.Dominio!.Trim().ToLowerInvariant());

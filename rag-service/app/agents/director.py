@@ -1,4 +1,4 @@
-"""Director de orquesta + agentes especializados (rrhh / mantenimiento / onboarding).
+"""Director de orquesta + agentes especializados (un tool por dominio en BD).
 
 - El DIRECTOR solo ve METADATOS (lista de dominios y documentos); decide a qué agente
   especializado llamar, cuántas veces y con qué consulta. Nunca ve contenido de chunks.
@@ -23,18 +23,12 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from langchain_openai import ChatOpenAI
 
-from app.config import DOMINIOS, Settings
+from app.config import Settings
 from app.core.llms import LlmClient
 from app.models import Hit, Traza
 from app.retrieval.engine import RetrievalEngine
 
 logger = logging.getLogger(__name__)
-
-ETIQUETAS_DOMINIO = {
-    "rrhh": "Recursos Humanos (nóminas, vacaciones, beneficios, políticas de personal)",
-    "mantenimiento": "Mantenimiento (manuales técnicos, procedimientos de equipos, calibraciones)",
-    "onboarding": "Onboarding (alta de empleados, checklist, formación inicial)",
-}
 
 
 def _parametros_planificador(settings: Settings) -> tuple[str, str, str, int]:
@@ -73,7 +67,7 @@ class ResultadoAgentic:
     confianza: float | None = None
 
 
-def crear_herramientas(
+async def crear_herramientas(
     engine: RetrievalEngine,
     settings: Settings,
     dominios: list[str] | None,
@@ -82,9 +76,20 @@ def crear_herramientas(
     """Fábrica de herramientas por dominio: cada agente queda acotado a su corpus."""
     herramientas = []
     registro_dominio: dict[str, str] = {}
+    try:
+        catalogo = await engine.listar_dominios()
+    except Exception:  # noqa: BLE001 — sin catálogo no hay herramientas de dominio
+        catalogo = []
 
-    for dominio in [d for d in DOMINIOS if not dominios or d in dominios]:
-        def _fabricar(dominio_fijo: str):
+    for info in catalogo:
+        dominio = str(info.get("clave", ""))
+        if not dominio or (dominios and dominio not in dominios):
+            continue
+        etiqueta = str(info.get("etiqueta") or dominio)
+        descripcion = str(info.get("descripcion") or "")
+        ambito_txt = f"{etiqueta} ({descripcion})" if descripcion else etiqueta
+
+        def _fabricar(dominio_fijo: str, ambito: str):
             async def buscar_en_agente(query: str, top_k: int = 6) -> str:
                 """Descripción dinámica asignada justo después (f-string no es docstring)."""
                 inicio = time.perf_counter()
@@ -115,7 +120,7 @@ def crear_herramientas(
             # el decorador @tool exige un docstring REAL: una f-string como primera
             # sentencia no cuenta como tal y rompía la creación de herramientas
             buscar_en_agente.__doc__ = (
-                f"Búsqueda en documentos de {dominio_fijo} ({ETIQUETAS_DOMINIO[dominio_fijo]}). "
+                f"Búsqueda en documentos de {dominio_fijo} ({ambito}). "
                 "Devuelve los pasajes más relevantes. Úsala para preguntas sobre ese ámbito."
             )
             herramienta: BaseTool = tool(buscar_en_agente)
@@ -123,7 +128,7 @@ def crear_herramientas(
             registro_dominio[herramienta.name] = dominio_fijo
             return herramienta
 
-        herramientas.append(_fabricar(dominio))
+        herramientas.append(_fabricar(dominio, ambito_txt))
 
     @tool
     async def listar_documentos() -> str:
@@ -178,16 +183,20 @@ async def ejecutar_director_stream(
 
     Emite dicts ``{"etapa": ..., ...}`` de progreso (para el evento SSE ``agent``)
     y termina cediendo el ``ResultadoAgentic`` con los pasajes fusionados."""
-    herramientas, registro = crear_herramientas(engine, settings, dominios, documentos_ids)
+    herramientas, registro = await crear_herramientas(engine, settings, dominios, documentos_ids)
 
     try:
         metadatos = await engine.metadatos_documentos()
+        catalogo = await engine.listar_dominios()
     except Exception as exc:  # noqa: BLE001 — el fallback al pipeline fijo decide después
         raise RuntimeError(f"metadatos no disponibles: {exc}") from exc
 
     yield {"etapa": "planificacion", "documentos": len(metadatos)}
 
-    ambitos = "\n".join(f"- {d}: {ETIQUETAS_DOMINIO[d]}" for d in DOMINIOS)
+    ambitos = "\n".join(
+        f"- {d.get('clave')}: {d.get('etiqueta', '')} ({d.get('descripcion', '')})".strip()
+        for d in catalogo
+    )
     sistema = PROMPT_DIRECTOR.format(
         ambitos=ambitos,
         metadatos=json.dumps(metadatos, ensure_ascii=False)[:2000],

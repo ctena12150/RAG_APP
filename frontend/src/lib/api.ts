@@ -1,4 +1,4 @@
-import type { Conversacion, Documento, Dominio, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion } from "./types";
+import type { Conversacion, Documento, Dominio, DominioInfo, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -211,6 +211,28 @@ export const api = {
   },
   borrarUsuario(id: string): Promise<void> {
     return request<void>(`/api/usuarios/${id}`, { method: "DELETE" });
+  },
+
+  // --- dominios gestionables (lectura abierta; escritura solo superusuario) ---
+  listarDominios(): Promise<DominioInfo[]> {
+    return request<DominioInfo[]>("/api/dominios");
+  },
+  crearDominio(datos: { clave: string; etiqueta: string; descripcion?: string | null }): Promise<DominioInfo> {
+    return request<DominioInfo>("/api/dominios", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datos),
+    });
+  },
+  actualizarDominio(clave: string, cambios: { etiqueta?: string; descripcion?: string | null }): Promise<DominioInfo> {
+    return request<DominioInfo>(`/api/dominios/${encodeURIComponent(clave)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cambios),
+    });
+  },
+  borrarDominio(clave: string): Promise<void> {
+    return request<void>(`/api/dominios/${encodeURIComponent(clave)}`, { method: "DELETE" });
   },
 
   // --- lista blanca de acceso Google (solo superusuario) ---

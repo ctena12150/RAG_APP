@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useApp } from "../state/AppContext";
-import { DOMINIOS, ETIQUETA_DOMINIO, ETIQUETA_ROL, ROLES, type Dominio, type Rol, type UsuarioAdmin } from "../lib/types";
+import { ETIQUETA_ROL, ROLES, type Dominio, type Rol, type UsuarioAdmin } from "../lib/types";
 import Dialogo, { campoDialogo, estiloCampoDialogo } from "./Dialogo";
 
 /**
@@ -20,14 +20,16 @@ export default function DialogoUsuario({
   onClose: () => void;
   onError: (msg: string | null) => void;
 }) {
-  const { crearUsuario, actualizarUsuario } = useApp();
+  const { crearUsuario, actualizarUsuario, dominios: catalogoCtx, etiquetaDominio: etiquetaCtx } = useApp();
+  const catalogo = catalogoCtx ?? [];
+  const etiquetaDominio = etiquetaCtx ?? ((c: string) => c);
   const editando = usuario !== null;
 
   const [identificador, setIdentificador] = useState(usuario?.usuario ?? "");
   const [nombre, setNombre] = useState(usuario?.nombre ?? "");
   const [email, setEmail] = useState(usuario?.email ?? "");
   const [rol, setRol] = useState<Rol>(usuario?.rol ?? "usuario");
-  const [dominios, setDominios] = useState<Dominio[]>([...(usuario?.dominios ?? DOMINIOS)]);
+  const [dominios, setDominios] = useState<Dominio[]>([...(usuario?.dominios ?? catalogo.map((d) => d.clave))]);
   const [contrasena, setContrasena] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -98,7 +100,7 @@ export default function DialogoUsuario({
               onChange={(e) => {
                 const nuevo = e.target.value as Rol;
                 setRol(nuevo);
-                if (nuevo === "teamleader" && dominios.length === 0) setDominios([...DOMINIOS]);
+                if (nuevo === "teamleader" && dominios.length === 0) setDominios(catalogo.map((d) => d.clave));
               }}
               className={campoDialogo}
               style={estiloCampoDialogo}
@@ -115,15 +117,15 @@ export default function DialogoUsuario({
           <fieldset className="flex flex-col gap-1.5 text-xs" style={{ color: "var(--ink-soft)" }}>
             <legend>Dominios gestionables (sin marcar ninguno = todos)</legend>
             <div className="flex flex-wrap gap-3">
-              {DOMINIOS.map((d) => (
-                <label key={d} className="flex items-center gap-1.5" style={{ color: "var(--ink)" }}>
+              {catalogo.map((d) => (
+                <label key={d.clave} className="flex items-center gap-1.5" style={{ color: "var(--ink)" }}>
                   <input
                     type="checkbox"
-                    checked={dominios.includes(d)}
-                    onChange={() => alternarDominio(d)}
+                    checked={dominios.includes(d.clave)}
+                    onChange={() => alternarDominio(d.clave)}
                     className="accent-[var(--accent-a)]"
                   />
-                  {ETIQUETA_DOMINIO[d]}
+                  {etiquetaDominio(d.clave)}
                 </label>
               ))}
             </div>

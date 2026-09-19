@@ -9,10 +9,20 @@ import { useApp } from "../state/AppContext";
 
 const useAppMock = vi.mocked(useApp);
 
+const CATALOGO = [
+  { clave: "rrhh", etiqueta: "Recursos Humanos" },
+  { clave: "mantenimiento", etiqueta: "Mantenimiento" },
+  { clave: "onboarding", etiqueta: "Onboarding" },
+  { clave: "it", etiqueta: "IT" },
+];
+
 function baseSidebarApp(sobre: Record<string, unknown>) {
   return {
     dominioActivo: "rrhh",
     setDominioActivo: vi.fn(),
+    dominios: CATALOGO,
+    etiquetaDominio: (c: string) => CATALOGO.find((d) => d.clave === c)?.etiqueta ?? c,
+    refrescarDominios: vi.fn(),
     documentos: [],
     folders: [],
     crearFolder: vi.fn(),
@@ -129,6 +139,13 @@ describe("AdminUsuarios · panel del superusuario", () => {
   function renderPanel(supero: Partial<ReturnType<typeof useApp>>) {
     vi.mocked(useApp).mockReturnValue({
       proveedoresDisponibles: [],
+      dominios: CATALOGO,
+      etiquetaDominio: (c: string) => CATALOGO.find((d) => d.clave === c)?.etiqueta ?? c,
+      refrescarDominios: vi.fn(),
+      listarDominios: vi.fn(),
+      crearDominio: vi.fn(),
+      actualizarDominio: vi.fn(),
+      borrarDominio: vi.fn(),
       listarUsuarios: vi.fn().mockResolvedValue([luis]),
       crearUsuario: vi.fn(),
       actualizarUsuario: vi.fn(),
@@ -222,7 +239,7 @@ describe("AdminUsuarios · panel del superusuario", () => {
       nombre: null,
       email: "nuevo@empresa.com",
       rol: "teamleader",
-      dominios: ["rrhh", "mantenimiento", "onboarding"],
+      dominios: ["rrhh", "mantenimiento", "onboarding", "it"],
       activo: true,
       creadoUtc: "2026-01-01T00:00:00Z",
     });
@@ -247,7 +264,7 @@ describe("AdminUsuarios · panel del superusuario", () => {
       rol: "teamleader",
       email: "nuevo@empresa.com",
       nombre: "Nuevo Usuario",
-      dominios: ["rrhh", "mantenimiento", "onboarding"],
+      dominios: ["rrhh", "mantenimiento", "onboarding", "it"],
     });
     expect(await screen.findByText("nuevo")).toBeInTheDocument();
   });
@@ -257,6 +274,13 @@ describe("AdminUsuarios · lista blanca Google", () => {
   function renderBlanca(supero: Partial<ReturnType<typeof useApp>>) {
     vi.mocked(useApp).mockReturnValue({
       proveedoresDisponibles: ["google", "local"],
+      dominios: CATALOGO,
+      etiquetaDominio: (c: string) => CATALOGO.find((d) => d.clave === c)?.etiqueta ?? c,
+      refrescarDominios: vi.fn(),
+      listarDominios: vi.fn(),
+      crearDominio: vi.fn(),
+      actualizarDominio: vi.fn(),
+      borrarDominio: vi.fn(),
       listarUsuarios: vi.fn().mockResolvedValue([]),
       crearUsuario: vi.fn(),
       actualizarUsuario: vi.fn(),
