@@ -214,12 +214,13 @@ def crear_router(contenedor) -> APIRouter:
         except Exception as exc:  # noqa: BLE001 — el catálogo no debe romper el chat
             logger.warning("No se pudo consultar Ollama para el catálogo: %s", type(exc).__name__)
 
-        if settings.groq_api_key:
+        claves_groq = settings.claves_api("groq")
+        if claves_groq:
             try:
                 async with httpx.AsyncClient(timeout=8) as client:
                     respuesta = await client.get(
                         settings.groq_base_url.rstrip("/") + "/models",
-                        headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+                        headers={"Authorization": f"Bearer {claves_groq[0]}"},
                     )
                     respuesta.raise_for_status()
                     for modelo in respuesta.json().get("data", []):
@@ -326,7 +327,11 @@ def crear_router(contenedor) -> APIRouter:
                     yield _sse(evento["evento"], evento["datos"])
 
                 if contenedor.cache is not None and vector_pregunta is not None and vistos:
-                    contenedor.cache.guardar(vector_pregunta, vistos, alcance)
+                    if not any(
+                        e["evento"] == "done" and isinstance(e["datos"], dict) and "clarify" in e["datos"]
+                        for e in vistos
+                    ):
+                        contenedor.cache.guardar(vector_pregunta, vistos, alcance)
             except RagError as exc:
                 yield _sse("error", {"code": exc.codigo, "message": exc.mensaje})
             except Exception as exc:  # noqa: BLE001 — última barrera; mensaje controlado

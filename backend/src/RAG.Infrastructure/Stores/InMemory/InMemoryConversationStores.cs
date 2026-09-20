@@ -146,7 +146,7 @@ public sealed class InMemoryMessageStore : IMessageStore
     {
         Id = m.Id, ConversacionId = m.ConversacionId, Rol = m.Rol, Contenido = m.Contenido,
         FuentesJson = m.FuentesJson, TrazaJson = m.TrazaJson, VerificacionJson = m.VerificacionJson,
-        MetricasJson = m.MetricasJson,
+        MetricasJson = m.MetricasJson, ClarifyJson = m.ClarifyJson,
         RevisionContenido = m.RevisionContenido, CreadoUtc = m.CreadoUtc
     };
 }

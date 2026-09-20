@@ -8,6 +8,8 @@ vi.mock("../state/AppContext", () => ({
     fuentesSeleccionadas: null,
     seleccionarFuentes: vi.fn(),
     aceptarRevision: vi.fn(),
+    preguntar: vi.fn(),
+    chat: { enviando: false },
   }),
 }));
 
@@ -98,6 +100,20 @@ describe("MessageBubble", () => {
     render(<MessageBubble mensaje={mensaje} />);
     expect(screen.getByLabelText("generando respuesta")).toBeInTheDocument();
     expect(document.querySelectorAll(".citation-stamp")).toHaveLength(0);
+  });
+
+  it("muestra chips de aclaración clicables", () => {
+    const mensaje: MensajeChat = {
+      id: "m10", rol: "assistant", contenido: "¿Hardware o software?", pendiente: false,
+      opcionesAclaracion: [
+        { texto: "Hardware", valor: "Es un problema de hardware" },
+        { texto: "Software", valor: "Es un problema de software" },
+      ],
+    };
+    render(<MessageBubble mensaje={mensaje} />);
+    expect(screen.getByRole("button", { name: "Hardware" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Software" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hardware" }));
   });
 
   describe("AccionesMensaje", () => {

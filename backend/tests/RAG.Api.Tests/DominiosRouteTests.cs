@@ -24,6 +24,8 @@ public sealed class DominiosRouteTests(
         var claves = lista.EnumerateArray().Select(e => e.GetProperty("clave").GetString()).ToList();
         Assert.Contains("rrhh", claves);
         Assert.Contains("it", claves);
+        var rrhh = lista.EnumerateArray().Single(e => e.GetProperty("clave").GetString() == "rrhh");
+        Assert.True(rrhh.GetProperty("ejemplos").GetArrayLength() >= 2);
     }
 
     [Fact]
@@ -45,6 +47,32 @@ public sealed class DominiosRouteTests(
         var client = factory.CreateClient();
         var response = await client.PostAsJsonAsync("/api/dominios",
             new { clave = "MAL!", etiqueta = "Mal", descripcion = "" });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Crear_con_ejemplos_los_persiste_y_actualizar_los_reemplaza()
+    {
+        var client = factory.CreateClient();
+        var creado = await client.PostAsJsonAsync("/api/dominios",
+            new { clave = "soporte", etiqueta = "Soporte", descripcion = "", ejemplos = new[] { "¿Ejemplo uno?", "  ", "¿Ejemplo dos?" } });
+        Assert.Equal(HttpStatusCode.Created, creado.StatusCode);
+        var cuerpo = await creado.Content.ReadFromJsonAsync<JsonElement>(Json);
+        Assert.Equal(2, cuerpo.GetProperty("ejemplos").GetArrayLength());
+
+        var patch = await client.PatchAsJsonAsync("/api/dominios/soporte",
+            new { ejemplos = new[] { "¿Solo este?" } });
+        Assert.Equal(HttpStatusCode.OK, patch.StatusCode);
+        var actualizado = await patch.Content.ReadFromJsonAsync<JsonElement>(Json);
+        Assert.Equal("¿Solo este?", actualizado.GetProperty("ejemplos").EnumerateArray().Single().GetString());
+    }
+
+    [Fact]
+    public async Task Crear_con_demasiados_ejemplos_devuelve_400()
+    {
+        var client = factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/dominios",
+            new { clave = "exceso", etiqueta = "Exceso", descripcion = "", ejemplos = new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9" } });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 

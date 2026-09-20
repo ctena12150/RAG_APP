@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     planner_chain: str = ""
     razonamiento: str = "off"
 
-    groq_api_key: str = ""
+    groq_api_key: str = ""  # lista separada por comas: key1,key2,key3 (rotación ante 429/401)
     mistral_api_key: str = ""
     google_api_key: str = ""   # solo si EMBEDDINGS_CHAIN usa google (free tier de AI Studio)
     groq_base_url: str = "https://api.groq.com/openai/v1"
@@ -81,11 +81,24 @@ class Settings(BaseSettings):
     guardrail_verificar_datos: bool = True   # cifras/fechas de la respuesta deben existir en las fuentes
     guardrail_exigir_citas: bool = True      # con fuentes disponibles, la respuesta debe citar al menos una
 
+    # --- aclaración con chips (solo primera pregunta sin contexto suficiente) ---
+    enable_aclaracion: bool = True
+    aclaracion_max_opciones: int = 4
+
     # --- seguridad ---
     # vacío = sin exigir clave interna (dev local). En despliegues con postgres la
     # clave es obligatoria: main falla al arrancar si no se define (defensa contra
     # quedarse con la clave de ejemplo en producción).
     internal_api_key: str = ""
+
+    def claves_api(self, proveedor: str) -> list[str]:
+        """Keys del proveedor en orden (coma en GROQ_API_KEY/MISTRAL_API_KEY)."""
+        raw = {"groq": self.groq_api_key, "mistral": self.mistral_api_key}.get(proveedor, "")
+        return [k.strip() for k in raw.split(",") if k.strip()]
+
+    @property
+    def groq_api_keys(self) -> list[str]:
+        return self.claves_api("groq")
 
     def chain(self, name: str) -> list[tuple[str, str]]:
         raw = {

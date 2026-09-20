@@ -68,6 +68,63 @@ def _settings() -> Settings:
     )
 
 
+def test_claves_api_partea_por_comas() -> None:
+    s = Settings(rag_store="memory", groq_api_key="a, b,,c ", mistral_api_key="")
+    assert s.claves_api("groq") == ["a", "b", "c"]
+    assert s.groq_api_keys == ["a", "b", "c"]
+    assert Settings(rag_store="memory", groq_api_key="", mistral_api_key="").claves_api("groq") == []
+
+
+class _ClienteRotacion:
+    """Falla las N primeras keys de groq con 429, luego responde ok."""
+
+    def __init__(self, fallos_groq: int = 1) -> None:
+        self.fallos_groq = fallos_groq
+        self.posts = 0
+        self.headers: list[dict] = []
+
+    async def post(self, _url: object, *, headers: dict, json: dict) -> _RespuestaPost:  # noqa: ANN002, ANN003
+        self.posts += 1
+        self.headers.append(headers)
+        auth = str(headers.get("Authorization", ""))
+        if auth.startswith("Bearer key-falla"):
+            raise RuntimeError("429 rate limit")
+        if auth == "Bearer key1" and self.posts <= self.fallos_groq:
+            raise RuntimeError("429 rate limit")
+        return _RespuestaPost("ok-rotado")
+
+
+@pytest.mark.asyncio
+async def test_complete_rota_segunda_key_groq() -> None:
+    s = Settings(rag_store="memory", groq_api_key="key1,key2", mistral_api_key="")
+    cliente = LlmClient(s)
+    falso = _ClienteRotacion(fallos_groq=1)
+    cliente._client = falso  # type: ignore[assignment]
+
+    resultado = await cliente.complete([("groq", "m")], [{"role": "user", "content": "hola"}])
+
+    assert resultado == "ok-rotado"
+    assert falso.posts == 2
+    assert falso.headers[1]["Authorization"] == "Bearer key2"
+    assert cliente.ultimo_fallback is True
+
+
+@pytest.mark.asyncio
+async def test_complete_agota_keys_y_pasa_a_ollama() -> None:
+    s = Settings(rag_store="memory", groq_api_key="key-falla1,key-falla2", mistral_api_key="")
+    cliente = LlmClient(s)
+    falso = _ClienteRotacion()
+    cliente._client = falso  # type: ignore[assignment]
+
+    resultado = await cliente.complete(
+        [("groq", "m-groq"), ("ollama", "m-ollama")], [{"role": "user", "content": "hola"}]
+    )
+
+    assert resultado == "ok-rotado"
+    assert falso.posts == 3
+    assert cliente.ultimo_proveedor == "ollama"
+
+
 @pytest.mark.asyncio
 async def test_stream_no_mezcla_fallback_despues_de_tokens() -> None:
     cliente = LlmClient(_settings())

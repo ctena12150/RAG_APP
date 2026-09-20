@@ -102,6 +102,10 @@ function RespuestaAsistente({ mensaje }: { mensaje: MensajeChat }) {
       <div className="prose-rag"><ReactMarkdown remarkPlugins={[remarkGfm]}>
         {mensaje.contenido}</ReactMarkdown></div>
 
+      {mensaje.opcionesAclaracion && mensaje.opcionesAclaracion.length > 0 && (
+        <OpcionesAclaracion mensaje={mensaje} />
+      )}
+
       {/* sellos de cita interactivos (todas las citas presentes en el texto) */}
       {citas.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5 border-t pt-2" style={{ borderColor: "var(--line)" }}>
@@ -117,6 +121,32 @@ function RespuestaAsistente({ mensaje }: { mensaje: MensajeChat }) {
       {fuentes.length > 0 && <FuentesDeRespuesta fuentes={fuentes} />}
 
       <BloquesMermaid contenido={mensaje.contenido} />
+    </div>
+  );
+}
+
+function OpcionesAclaracion({ mensaje }: { mensaje: MensajeChat }) {
+  const { preguntar, chat } = useApp();
+  const opciones = mensaje.opcionesAclaracion ?? [];
+  if (opciones.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Opciones de aclaración">
+      {opciones.map((op) => (
+        <button
+          key={op.valor}
+          type="button"
+          disabled={chat.enviando}
+          onClick={() => void preguntar(op.valor)}
+          className="rounded-full px-2.5 py-1 text-[11px]"
+          style={{
+            border: "1px solid var(--accent-a)",
+            color: "var(--accent-a)",
+            background: "color-mix(in oklab, var(--accent-a) 10%, transparent)",
+          }}
+        >
+          {op.texto}
+        </button>
+      ))}
     </div>
   );
 }

@@ -46,6 +46,7 @@ public static class DominiosEndpoints
         if ((body.Descripcion?.Trim().Length ?? 0) > 300)
             throw new ControlledException("descripcion_invalida", StatusCodes.Status400BadRequest,
                 "La descripción admite máx. 300 caracteres.");
+        var ejemplos = SanearEjemplos(body.Ejemplos);
         if (await store.ObtenerPorClaveAsync(clave, ct) is not null)
             throw new ControlledException("dominio_duplicado", StatusCodes.Status409Conflict,
                 $"Ya existe un dominio con clave '{clave}'.");
@@ -54,6 +55,7 @@ public static class DominiosEndpoints
             Clave = clave,
             Etiqueta = body.Etiqueta.Trim(),
             Descripcion = body.Descripcion?.Trim() ?? "",
+            Ejemplos = ejemplos,
             CreadoUtc = DateTime.UtcNow
         };
         await store.CrearAsync(nuevo, ct);
@@ -65,9 +67,9 @@ public static class DominiosEndpoints
     {
         var actual = await store.ObtenerPorClaveAsync(clave.Trim().ToLowerInvariant(), ct)
             ?? throw new KeyNotFoundException($"Dominio {clave} no existe.");
-        if (body.Etiqueta is null && body.Descripcion is null)
+        if (body.Etiqueta is null && body.Descripcion is null && body.Ejemplos is null)
             throw new ControlledException("sin_cambios", StatusCodes.Status400BadRequest,
-                "Indica etiqueta o descripción a modificar.");
+                "Indica etiqueta, descripción o ejemplos a modificar.");
         if (body.Etiqueta is not null)
         {
             if (string.IsNullOrWhiteSpace(body.Etiqueta) || body.Etiqueta.Trim().Length > 100)
@@ -82,8 +84,27 @@ public static class DominiosEndpoints
                     "La descripción admite máx. 300 caracteres.");
             actual.Descripcion = body.Descripcion.Trim();
         }
+        if (body.Ejemplos is not null)
+            actual.Ejemplos = SanearEjemplos(body.Ejemplos);
         await store.ActualizarAsync(actual, ct);
         return TypedResults.Ok(actual);
+    }
+
+    internal static IReadOnlyList<string> SanearEjemplos(IEnumerable<string>? ejemplos)
+    {
+        if (ejemplos is null) return [];
+        var limpios = ejemplos
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e.Trim())
+            .Where(e => e.Length > 0)
+            .ToList();
+        if (limpios.Count > 8)
+            throw new ControlledException("ejemplos_invalidos", StatusCodes.Status400BadRequest,
+                "Máximo 8 ejemplos por dominio.");
+        if (limpios.Any(e => e.Length > 200))
+            throw new ControlledException("ejemplos_invalidos", StatusCodes.Status400BadRequest,
+                "Cada ejemplo admite máx. 200 caracteres.");
+        return limpios;
     }
 
     private static async Task<NoContent> EliminarAsync(
@@ -103,5 +124,5 @@ public static class DominiosEndpoints
     }
 }
 
-public sealed record CrearDominioRequest(string? Clave, string? Etiqueta, string? Descripcion);
-public sealed record ActualizarDominioRequest(string? Etiqueta, string? Descripcion);
+public sealed record CrearDominioRequest(string? Clave, string? Etiqueta, string? Descripcion, IReadOnlyList<string>? Ejemplos = null);
+public sealed record ActualizarDominioRequest(string? Etiqueta, string? Descripcion, IReadOnlyList<string>? Ejemplos = null);

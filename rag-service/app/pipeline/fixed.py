@@ -18,7 +18,7 @@ from app.generation.generate import (
     limpiar_citas_invalidas,
 )
 from app.models import Traza
-from app.pipeline.comun import abstencion_por_umbral, datos_done
+from app.pipeline.comun import aclaracion_si_procede, datos_done
 from app.pipeline.verificacion import (
     _verificacion_y_revision,
     evaluar_guardrails_salida,
@@ -57,8 +57,11 @@ async def pipeline_fijo(
     fuentes = contexto.hits
     yield Sse.evento("progress", {"etapa": "recuperacion", "texto": f"Recuperados {len(fuentes)} fragmentos."})
 
-    # --- guardrail de umbral: contexto débil → abstención directa sin generar ---
-    abstencion = abstencion_por_umbral(settings, contexto.confianza, traza)
+    # --- guardrail de umbral: contexto débil → aclaración o abstención sin generar ---
+    catalogo = await engine.listar_dominios()
+    abstencion = await aclaracion_si_procede(
+        settings, llm, pregunta, historial, contexto.confianza, traza, catalogo
+    )
     if abstencion is not None:
         yield Sse.evento("done", abstencion)
         return

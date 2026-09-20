@@ -16,6 +16,7 @@ public sealed class PostgreSqlMessageStore(IDbConnectionFactory factory) : IMess
             traza_json AS "TrazaJson",
             verificacion_json AS "VerificacionJson",
             metricas_json AS "MetricasJson",
+            clarify_json AS "ClarifyJson",
             revision_contenido AS "RevisionContenido",
             creado_utc AS "CreadoUtc"
         FROM app.mensajes
@@ -24,7 +25,7 @@ public sealed class PostgreSqlMessageStore(IDbConnectionFactory factory) : IMess
     public async Task<Message> AddAsync(Message m, CancellationToken ct = default)
     {
         const string sql = """
-            INSERT INTO app.mensajes (id, conversacion_id, rol, contenido, fuentes_json, traza_json, verificacion_json, metricas_json, revision_contenido, creado_utc)
+            INSERT INTO app.mensajes (id, conversacion_id, rol, contenido, fuentes_json, traza_json, verificacion_json, metricas_json, clarify_json, revision_contenido, creado_utc)
             VALUES (
                 @Id,
                 @ConversacionId,
@@ -34,6 +35,7 @@ public sealed class PostgreSqlMessageStore(IDbConnectionFactory factory) : IMess
                 CAST(@TrazaJson AS jsonb),
                 CAST(@VerificacionJson AS jsonb),
                 CAST(@MetricasJson AS jsonb),
+                CAST(@ClarifyJson AS jsonb),
                 @RevisionContenido,
                 @CreadoUtc
             )

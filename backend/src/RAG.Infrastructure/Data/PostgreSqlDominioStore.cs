@@ -11,6 +11,7 @@ public sealed class PostgreSqlDominioStore(IDbConnectionFactory factory) : IDomi
             clave AS "Clave",
             etiqueta AS "Etiqueta",
             descripcion AS "Descripcion",
+            ejemplos AS "Ejemplos",
             creado_utc AS "CreadoUtc"
         FROM app.dominios
         """;
@@ -32,8 +33,8 @@ public sealed class PostgreSqlDominioStore(IDbConnectionFactory factory) : IDomi
     public async Task<Dominio> CrearAsync(Dominio dominio, CancellationToken ct = default)
     {
         const string sql = """
-            INSERT INTO app.dominios (clave, etiqueta, descripcion, creado_utc)
-            VALUES (@Clave, @Etiqueta, @Descripcion, @CreadoUtc)
+            INSERT INTO app.dominios (clave, etiqueta, descripcion, ejemplos, creado_utc)
+            VALUES (@Clave, @Etiqueta, @Descripcion, @Ejemplos, @CreadoUtc)
             """;
         await using var conn = await factory.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition(sql, dominio, cancellationToken: ct));
@@ -42,7 +43,7 @@ public sealed class PostgreSqlDominioStore(IDbConnectionFactory factory) : IDomi
 
     public async Task ActualizarAsync(Dominio dominio, CancellationToken ct = default)
     {
-        const string sql = "UPDATE app.dominios SET etiqueta = @Etiqueta, descripcion = @Descripcion WHERE clave = @Clave";
+        const string sql = "UPDATE app.dominios SET etiqueta = @Etiqueta, descripcion = @Descripcion, ejemplos = @Ejemplos WHERE clave = @Clave";
         await using var conn = await factory.OpenAsync(ct);
         if (await conn.ExecuteAsync(new CommandDefinition(sql, dominio, cancellationToken: ct)) == 0)
             throw new KeyNotFoundException($"Dominio {dominio.Clave} no existe.");

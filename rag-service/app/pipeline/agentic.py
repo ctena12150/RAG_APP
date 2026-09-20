@@ -20,7 +20,7 @@ from app.generation.generate import (
     limpiar_citas_invalidas,
 )
 from app.models import Hit, Traza
-from app.pipeline.comun import abstencion_por_umbral, datos_done
+from app.pipeline.comun import aclaracion_si_procede, datos_done
 from app.pipeline.fixed import Sse
 from app.pipeline.verificacion import (
     _verificacion_y_revision,
@@ -74,7 +74,7 @@ async def pipeline_agentic(
         )
         async for evento in _fase_respuesta(
             settings, llm, pregunta, historial,
-            traza, contexto.hits, contexto.confianza,
+            traza, contexto.hits, contexto.confianza, engine,
         ):
             yield evento
         return
@@ -82,7 +82,7 @@ async def pipeline_agentic(
     # sin búsqueda decidida por el director (saludo/charla): responder sin fuentes documentales
     async for evento in _fase_respuesta(
         settings, llm, pregunta, historial,
-        traza, resultado.hits, resultado.confianza,
+        traza, resultado.hits, resultado.confianza, engine,
     ):
         yield evento
 
@@ -95,12 +95,16 @@ async def _fase_respuesta(
     traza: Traza | None,
     fuentes: list[Hit],
     confianza: float | None,
+    engine: RetrievalEngine | None = None,
 ) -> AsyncIterator[dict]:
     inicio_respuesta = time.perf_counter()
 
     # --- guardrail de umbral (solo si hay confianza calculada; fuentes vacías pasan: saludo) ---
     if fuentes:
-        abstencion = abstencion_por_umbral(settings, confianza, traza)
+        catalogo = await engine.listar_dominios() if engine else []
+        abstencion = await aclaracion_si_procede(
+            settings, llm, pregunta, historial, confianza, traza, catalogo
+        )
         if abstencion is not None:
             yield Sse.evento("done", abstencion)
             return

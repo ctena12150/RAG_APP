@@ -32,14 +32,19 @@ logger = logging.getLogger(__name__)
 
 
 def _parametros_planificador(settings: Settings) -> tuple[str, str, str, int]:
+    return _parametros_planificador_lista(settings)[0]
+
+
+def _parametros_planificador_lista(settings: Settings) -> list[tuple[str, str, str, int]]:
     proveedor, modelo = settings.chain("planner")[0]
     base_urls = {
-        "groq": (settings.groq_base_url, settings.groq_api_key),
-        "mistral": (settings.mistral_base_url, settings.mistral_api_key),
-        "ollama": (settings.ollama_base_url, ""),
+        "groq": (settings.groq_base_url, settings.claves_api("groq")),
+        "mistral": (settings.mistral_base_url, settings.claves_api("mistral")),
+        "ollama": (settings.ollama_base_url, [""]),
     }
-    url, key = base_urls.get(proveedor, base_urls["ollama"])
-    return modelo, key or "EMPTY", url, settings.llm_timeout_seconds
+    url, claves = base_urls.get(proveedor, base_urls["ollama"])
+    claves = claves or ["EMPTY"]
+    return [(modelo, clave or "EMPTY", url, settings.llm_timeout_seconds) for clave in claves]
 
 
 @lru_cache(maxsize=4)
@@ -57,6 +62,28 @@ def _modelo_planificador_cacheado(modelo: str, api_key: str, url: str, timeout: 
 
 def _modelo_planificador(settings: Settings) -> ChatOpenAI:
     return _modelo_planificador_cacheado(*_parametros_planificador(settings))
+
+
+def _modelos_planificador(settings: Settings) -> list:
+    unico = _modelo_planificador(settings)
+    if not isinstance(unico, ChatOpenAI):
+        return [unico]
+    return [_modelo_planificador_cacheado(*p) for p in _parametros_planificador_lista(settings)]
+
+
+async def _invocar_planificador(modelos: list, mensajes: list) -> AIMessage:
+    """Prueba cada key en orden; si todas fallan, propaga el último error."""
+    ultimo_error: Exception | None = None
+    for idx, modelo in enumerate(modelos):
+        try:
+            return await modelo.ainvoke(mensajes)
+        except Exception as exc:  # noqa: BLE001 — rotar keys, el fallback decide después
+            ultimo_error = exc
+            if idx + 1 < len(modelos):
+                logger.warning("Fallo planner con key %d (%s); rotando key", idx + 1, type(exc).__name__)
+                continue
+            raise
+    raise RuntimeError(str(ultimo_error) if ultimo_error else "sin modelos de planner")
 
 
 @dataclass
@@ -203,7 +230,7 @@ async def ejecutar_director_stream(
         max_steps=settings.agentic_max_steps,
     )
 
-    modelo = _modelo_planificador(settings).bind_tools(herramientas)
+    modelos = [m.bind_tools(herramientas) for m in _modelos_planificador(settings)]
     mensajes: list = [
         SystemMessage(content=sistema),
         *[{"role": m.get("role"), "content": m.get("content", "")} for m in historial[-6:]],
@@ -216,7 +243,7 @@ async def ejecutar_director_stream(
     pasos = 0
 
     while pasos < settings.agentic_max_steps:
-        respuesta: AIMessage = await modelo.ainvoke(mensajes)
+        respuesta: AIMessage = await _invocar_planificador(modelos, mensajes)
         mensajes.append(respuesta)
         if not respuesta.tool_calls:
             break

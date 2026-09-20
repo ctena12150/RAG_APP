@@ -82,8 +82,8 @@ interface AppContextValue {
   etiquetaDominio: (clave: Dominio) => string;
   refrescarDominios: () => Promise<void>;
   listarDominios: () => Promise<DominioInfo[]>;
-  crearDominio: (datos: { clave: string; etiqueta: string; descripcion?: string | null }) => Promise<DominioInfo>;
-  actualizarDominio: (clave: string, cambios: { etiqueta?: string; descripcion?: string | null }) => Promise<DominioInfo>;
+  crearDominio: (datos: { clave: string; etiqueta: string; descripcion?: string | null; ejemplos?: string[] }) => Promise<DominioInfo>;
+  actualizarDominio: (clave: string, cambios: { etiqueta?: string; descripcion?: string | null; ejemplos?: string[] }) => Promise<DominioInfo>;
   borrarDominio: (clave: string) => Promise<void>;
 
   dominioActivo: Dominio | "todas";
@@ -473,15 +473,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
             onProgress(progreso) {
               setChat((c) => ({ ...c, actividad: [...c.actividad, progreso.texto] }));
             },
-            onDone({ content, sources, trace, metrics }) {
+            onDone({ content, sources, trace, metrics, clarify }) {
               respuestaCompletada = true;
               setChat((c) => ({ ...c, actividad: [], metricas: metrics ?? null }));
+              const opciones = Array.isArray(clarify?.opciones)
+                ? clarify.opciones
+                    .filter((o) => o && typeof o.texto === "string" && typeof o.valor === "string")
+                    .map((o) => ({ texto: o.texto.trim().slice(0, 80), valor: o.valor.trim().slice(0, 200) }))
+                    .filter((o) => o.texto && o.valor)
+                : null;
               actualizarBorrador((m) => ({
                 ...m,
                 contenido: content || m.contenido,
                 fuentes: sources,
                 traza: trace as TrazaPipeline,
                 metricas: metrics ?? null,
+                opcionesAclaracion: opciones && opciones.length > 0 ? opciones : null,
                 pendiente: false,
               }));
             },

@@ -198,6 +198,36 @@ public sealed class QueryAndConversationsTests(ApiTestFactory factory) : IClassF
     }
 
     [Fact]
+    public async Task Done_con_clarify_se_reenvia_y_persiste()
+    {
+        await SubirYEsperarAsync("it-red.txt", "it", "La red corporativa usa VPN con doble factor.");
+        var client = factory.CreateClient();
+        var createResponse = await client.PostAsJsonAsync("/api/conversations", new { });
+        var conversationId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(Json))
+            .GetProperty("id").GetString()!;
+
+        factory.Rag.ScriptedChatResponses.Enqueue(
+        [
+            new SseEvent("done", """
+                {"content":"¿Hardware o software?","sources":[],"trace":{"etapas":[]},
+                 "clarify":{"opciones":[{"texto":"Hardware","valor":"Es un problema de hardware"}]}}
+                """)
+        ]);
+
+        var ask = await client.PostAsJsonAsync($"/api/conversations/{conversationId}/messages",
+            new { pregunta = "¿Falla el equipo?" });
+        ask.EnsureSuccessStatusCode();
+        var sse = await ask.Content.ReadAsStringAsync();
+        Assert.Contains("event: done", sse);
+        Assert.Contains("clarify", sse);
+        Assert.Contains("Hardware", sse);
+
+        var messages = await client.GetFromJsonAsync<List<JsonElement>>($"/api/conversations/{conversationId}/messages", Json);
+        var assistant = messages!.Single(m => m.GetProperty("rol").GetString() == "assistant");
+        Assert.Contains("Hardware", assistant.GetProperty("clarifyJson").GetString());
+    }
+
+    [Fact]
     public async Task Pregunta_vacia_o_conversacion_inexistente_devuelven_error_controlado()
     {
         var client = factory.CreateClient();

@@ -38,6 +38,24 @@ describe("normalizarMensaje", () => {
     expect(mensaje.traza?.modo).toBe("fijo");
     expect(mensaje.verificacion?.verdict).toBe("supported");
   });
+
+  it("parsea clarifyJson con opciones y descarta inválidas", () => {
+    const mensaje = normalizarMensaje({
+      id: "m2",
+      rol: "assistant",
+      contenido: "¿Hardware o software?",
+      clarifyJson: JSON.stringify({ opciones: [
+        { texto: "Hardware", valor: "Es hardware" },
+        { texto: "", valor: "vacío" },
+      ] }),
+    });
+    expect(mensaje.opcionesAclaracion).toEqual([{ texto: "Hardware", valor: "Es hardware" }]);
+  });
+
+  it("sin clarifyJson no hay opciones", () => {
+    const mensaje = normalizarMensaje({ id: "m3", rol: "assistant", contenido: "ok" });
+    expect(mensaje.opcionesAclaracion ?? null).toBeNull();
+  });
 });
 
 describe("exportarConversacionMarkdown", () => {

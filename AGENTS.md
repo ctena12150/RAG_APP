@@ -69,14 +69,14 @@ Secretos: `appsettings.json` viaja con placeholders (nunca credenciales reales);
 
 - **El frontend SOLO habla con el backend .NET** (:5000); el .NET relay-a el servicio Python (:8000) por SSE.
 - **Chunks y embeddings son propiedad exclusiva del esquema `rag`** (Python). El .NET no los toca; las citas llegan en el evento SSE `done`.
-- **El Director ve solo metadatos** (`metadatos_documentos()`), jamás contenido de chunks. Los agentes especializados quedan acotados a su dominio vía herramientas (`buscar_rrhh|mantenimiento|onboarding`, `listar_documentos`).
-- **Contrato SSE** (Python→.NET→frontend): eventos en orden `meta → agent* → token* → done → verified? → revision_available?` (+ `error`). `agent` (progreso del Director: planificacion/buscando/hallazgo) es passthrough sin persistencia y SIEMPRE antes del primer token. `done` lleva `{content, sources[], trace}`; `verified` puede traer `{revision}`.
-- **Caché semántica**: solo primera pregunta de conversación (historial vacío), coseno ≥ 0.95; invalidar en `/ingest` y `DELETE /documents/{id}` (`contenedor.cache.invalidar()`); nunca cachear turnos con evento `error`.
+- **El Director ve solo metadatos** (`metadatos_documentos()`), jamás contenido de chunks. Los agentes especializados quedan acotados a su dominio vía herramientas (`buscar_<clave>|listar_documentos`, generadas desde `app.dominios`).
+- **Contrato SSE** (Python→.NET→frontend): eventos en orden `meta → agent* → token* → done → verified? → revision_available?` (+ `error`). `agent` (progreso del Director: planificacion/buscando/hallazgo) es passthrough sin persistencia y SIEMPRE antes del primer token. `done` lleva `{content, sources[], trace, clarify?}` (`clarify={opciones:[{texto,valor}]}` solo en primera pregunta ambigua sin contexto); `verified` puede traer `{revision}`.
+- **Caché semántica**: solo primera pregunta de conversación (historial vacío), coseno ≥ 0.95; invalidar en `/ingest` y `DELETE /documents/{id}` (`contenedor.cache.invalidar()`); nunca cachear turnos con evento `error` ni con `clarify`.
 - **Citas**: formato `(Fuente N)`; se validan contra chunks realmente recuperados; las inválidas se eliminan del texto final (`limpiar_citas_invalidas`).
 - **Abstención**: frase exacta `"No dispongo de esa documentación"` cuando el contexto no sustenta (constante `FRASE_ABSTENCION`; no cambiarla sin revisar tests y guardrails).
 - **Guardrails** (orden barato→caro ANTES del juez LLM): umbral de relevancia → verificador determinista de datos → exigencia de citas → juez LLM. Fallos ⇒ revisión sugerida, nunca bloquean lo ya mostrado.
 - **Embeddings sin fallback cruzado entre proveedores** (espacios vectoriales incompatibles); lotes ≤64 (`embedding_batch_size`).
-- Dominios fijos: `rrhh | mantenimiento | onboarding` (validar siempre con `Dominios.EsValido` / constante `DOMINIOS`).
+- Dominios dinámicos en `app.dominios` (siembra: `rrhh | mantenimiento | onboarding | it`); validar contra `IDominioStore` / `engine.listar_dominios()`.
 - Errores controlados: código corto en español (`sin_documentos`, `consulta_no_permitida`…) + mensaje genérico. **Nunca filtrar detalles del proveedor LLM**.
 
 ## Convenciones .NET (backend/)

@@ -1,4 +1,4 @@
-import type { Conversacion, Documento, Dominio, DominioInfo, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion } from "./types";
+import type { Conversacion, Documento, Dominio, DominioInfo, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, OpcionAclaracion, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -28,6 +28,7 @@ type MensajeApi = MensajeChat & {
   trazaJson?: string | TrazaPipeline | null;
   verificacionJson?: string | Verificacion | null;
   metricasJson?: string | MetricasGeneracion | null;
+  clarifyJson?: string | { opciones?: OpcionAclaracion[] } | null;
 };
 
 function parsearJson<T>(valor: unknown): T | null {
@@ -42,6 +43,7 @@ function parsearJson<T>(valor: unknown): T | null {
 
 /** Convierte el contrato de persistencia .NET al contrato de vista del frontend. */
 export function normalizarMensaje(mensaje: MensajeApi): MensajeChat {
+  const clarify = mensaje.opcionesAclaracion ?? extraerOpciones(mensaje.clarifyJson);
   return {
     id: mensaje.id,
     rol: mensaje.rol,
@@ -51,8 +53,20 @@ export function normalizarMensaje(mensaje: MensajeApi): MensajeChat {
     verificacion: mensaje.verificacion ?? parsearJson<Verificacion>(mensaje.verificacionJson),
     metricas: mensaje.metricas ?? parsearJson<MetricasGeneracion>(mensaje.metricasJson),
     revisionContenido: mensaje.revisionContenido,
+    opcionesAclaracion: clarify,
     pendiente: mensaje.pendiente,
   };
+}
+
+function extraerOpciones(valor: MensajeApi["clarifyJson"]): OpcionAclaracion[] | null {
+  const parsed = parsearJson<{ opciones?: OpcionAclaracion[] }>(valor);
+  const lista = parsed?.opciones;
+  if (!Array.isArray(lista)) return null;
+  const limpias = lista
+    .filter((o) => o && typeof o.texto === "string" && typeof o.valor === "string")
+    .map((o) => ({ texto: o.texto.trim().slice(0, 80), valor: o.valor.trim().slice(0, 200) }))
+    .filter((o) => o.texto && o.valor);
+  return limpias.length > 0 ? limpias : null;
 }
 
 /** Opciones de subida: carpeta destino y callback de progreso del envío (0..1). */
@@ -217,14 +231,14 @@ export const api = {
   listarDominios(): Promise<DominioInfo[]> {
     return request<DominioInfo[]>("/api/dominios");
   },
-  crearDominio(datos: { clave: string; etiqueta: string; descripcion?: string | null }): Promise<DominioInfo> {
+  crearDominio(datos: { clave: string; etiqueta: string; descripcion?: string | null; ejemplos?: string[] }): Promise<DominioInfo> {
     return request<DominioInfo>("/api/dominios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(datos),
     });
   },
-  actualizarDominio(clave: string, cambios: { etiqueta?: string; descripcion?: string | null }): Promise<DominioInfo> {
+  actualizarDominio(clave: string, cambios: { etiqueta?: string; descripcion?: string | null; ejemplos?: string[] }): Promise<DominioInfo> {
     return request<DominioInfo>(`/api/dominios/${encodeURIComponent(clave)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -272,7 +286,7 @@ export interface SseHandlers {
   onAgent?(progreso: ProgresoAgente): void;
   onProgress?(progreso: { etapa: string; texto: string }): void;
   onToken?(texto: string): void;
-  onDone?(datos: { messageId: string; content: string; sources: MensajeChat["fuentes"]; trace: unknown; metrics?: MetricasGeneracion }): void;
+  onDone?(datos: { messageId: string; content: string; sources: MensajeChat["fuentes"]; trace: unknown; metrics?: MetricasGeneracion; clarify?: { opciones?: OpcionAclaracion[] } | null }): void;
   onVerified?(datos: { verdict: string; critique?: string; revision?: string }): void;
   onRevisionAvailable?(datos: { revision: string; critique?: string }): void;
   onError?(error: { code: string; message: string }): void;

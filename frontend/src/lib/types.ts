@@ -4,6 +4,7 @@ export interface DominioInfo {
   clave: string;
   etiqueta: string;
   descripcion?: string | null;
+  ejemplos?: string[];
   creadoUtc?: string;
 }
 
@@ -84,6 +85,11 @@ export type Verificacion =
   | { verdict: "unsupported"; critique?: string; revision?: string }
   | { verdict: "error" };
 
+export interface OpcionAclaracion {
+  texto: string;
+  valor: string;
+}
+
 export interface MensajeChat {
   id: string;
   rol: "user" | "assistant";
@@ -92,6 +98,7 @@ export interface MensajeChat {
   traza?: TrazaPipeline | null;
   verificacion?: Verificacion | null;
   revisionContenido?: string | null;
+  opcionesAclaracion?: OpcionAclaracion[] | null;
   pendiente?: boolean;
   cancelada?: boolean;
   metricas?: MetricasGeneracion | null;

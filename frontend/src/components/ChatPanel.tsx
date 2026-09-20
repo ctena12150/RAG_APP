@@ -162,7 +162,14 @@ export default function ChatPanel() {
       </div>
       <div ref={listaRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
         <div className="mx-auto max-w-3xl space-y-5">
-          {chat.mensajes.length === 0 && <EstadoVacio conDocumentos={hayDocumentos} />}
+          {chat.mensajes.length === 0 && (
+            <EstadoVacio
+              conDocumentos={hayDocumentos}
+              ejemplos={dominiosChat.flatMap((c) => dominios.find((d) => d.clave === c)?.ejemplos ?? [])}
+              enviando={chat.enviando}
+              alElegir={(texto) => void preguntar(texto, modelo || undefined, razonamiento, perfilRapido ? "fast" : "normal", dominiosChat)}
+            />
+          )}
           <AnimatePresence initial={false}>
             {chat.mensajes.map((m) => (
               <motion.div
@@ -311,7 +318,7 @@ export default function ChatPanel() {
   );
 }
 
-function EstadoVacio({ conDocumentos }: { conDocumentos: boolean }) {
+function EstadoVacio({ conDocumentos, ejemplos, enviando, alElegir }: { conDocumentos: boolean; ejemplos: string[]; enviando: boolean; alElegir: (texto: string) => void }) {
   return (
     <div className="flex flex-col items-center py-20 text-center" data-testid="estado-vacio">
       <OndaDecorativa />
@@ -321,6 +328,26 @@ function EstadoVacio({ conDocumentos }: { conDocumentos: boolean }) {
           ? "Pregunta en lenguaje natural. El director decidirá qué agente especializado consultar."
           : "Sube un documento en la pestaña de documentos para empezar."}
       </p>
+      {conDocumentos && ejemplos.length > 0 && (
+        <div className="mt-4 flex max-w-md flex-wrap justify-center gap-1.5" role="group" aria-label="Ejemplos de conversación">
+          {ejemplos.slice(0, 6).map((ejemplo) => (
+            <button
+              key={ejemplo}
+              type="button"
+              disabled={enviando}
+              onClick={() => alElegir(ejemplo)}
+              className="rounded-full px-2.5 py-1 text-[11px]"
+              style={{
+                border: "1px solid var(--accent-a)",
+                color: "var(--accent-a)",
+                background: "color-mix(in oklab, var(--accent-a) 10%, transparent)",
+              }}
+            >
+              {ejemplo}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

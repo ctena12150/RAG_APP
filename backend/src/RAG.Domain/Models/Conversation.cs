@@ -27,6 +27,7 @@ public sealed class Message
     public string? TrazaJson { get; set; }
     public string? VerificacionJson { get; set; }
     public string? MetricasJson { get; set; }
+    public string? ClarifyJson { get; set; }
     public string? RevisionContenido { get; set; }
     public DateTime CreadoUtc { get; set; }
 }

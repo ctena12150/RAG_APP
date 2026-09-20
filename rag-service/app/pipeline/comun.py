@@ -26,10 +26,11 @@ def datos_done(
     traza: Traza | None,
     inicio_generacion: float,
     inicio_total: float,
+    clarify: dict | None = None,
 ) -> dict:
     """Payload del evento done con métricas estimadas (idéntico en ambos pipelines)."""
     modelo_solicitado = settings.chain("generation")[0] if settings.chain("generation") else (None, None)
-    return {
+    payload = {
         "content": contenido_limpio,
         "sources": [t.to_dict() for t in tarjetas],
         "trace": traza.to_dict() if traza else None,
@@ -46,6 +47,9 @@ def datos_done(
             "razonamiento": settings.razonamiento,
         },
     }
+    if clarify is not None:
+        payload["clarify"] = clarify
+    return payload
 
 
 def abstencion_por_umbral(
@@ -67,6 +71,41 @@ def abstencion_por_umbral(
         "content": FRASE_ABSTENCION,
         "sources": [],
         "trace": traza.to_dict() if traza else None,
+    }
+
+
+async def aclaracion_si_procede(
+    settings: Settings,
+    llm: LlmClient,
+    pregunta: str,
+    historial: list[dict],
+    confianza: float | None,
+    traza: Traza | None,
+    catalogo: list[dict],
+) -> dict | None:
+    """Abstención o aclaración con chips: solo primera pregunta sin contexto y con toggle."""
+    if supera_umbral(confianza, settings.guardrail_umbral_relevancia):
+        return None
+    if historial or not settings.enable_aclaracion:
+        return abstencion_por_umbral(settings, confianza, traza)
+    from app.generation.clarify import generar_aclaracion
+
+    aclaracion = await generar_aclaracion(settings, llm, pregunta, catalogo)
+    if aclaracion is None:
+        return abstencion_por_umbral(settings, confianza, traza)
+    if traza:
+        traza.agregar(
+            "guardrail_umbral",
+            confianza=round(confianza, 4) if confianza is not None else None,
+            umbral=settings.guardrail_umbral_relevancia,
+            resultado="aclaracion",
+            opciones=len(aclaracion["opciones"]),
+        )
+    return {
+        "content": aclaracion["pregunta"],
+        "sources": [],
+        "trace": traza.to_dict() if traza else None,
+        "clarify": {"opciones": aclaracion["opciones"]},
     }
 
 

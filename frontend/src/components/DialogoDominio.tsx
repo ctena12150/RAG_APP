@@ -20,6 +20,7 @@ export default function DialogoDominio({
   const [clave, setClave] = useState(dominio?.clave ?? "");
   const [etiqueta, setEtiqueta] = useState(dominio?.etiqueta ?? "");
   const [descripcion, setDescripcion] = useState(dominio?.descripcion ?? "");
+  const [ejemplos, setEjemplos] = useState((dominio?.ejemplos ?? []).join("\n"));
   const [guardando, setGuardando] = useState(false);
 
   const guardar = async (e: FormEvent) => {
@@ -27,9 +28,10 @@ export default function DialogoDominio({
     onError(null);
     setGuardando(true);
     try {
+      const lista = ejemplos.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
       const guardado = editando
-        ? await actualizarDominio(dominio.clave, { etiqueta, descripcion })
-        : await crearDominio({ clave, etiqueta, descripcion });
+        ? await actualizarDominio(dominio.clave, { etiqueta, descripcion, ejemplos: lista })
+        : await crearDominio({ clave, etiqueta, descripcion, ejemplos: lista });
       onGuardado(guardado);
       onClose();
     } catch (err) {
@@ -75,6 +77,17 @@ export default function DialogoDominio({
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
             maxLength={300}
+            className={campoDialogo}
+            style={estiloCampoDialogo}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--ink-soft)" }}>
+          Ejemplos (uno por línea, máx. 8)
+          <textarea
+            value={ejemplos}
+            onChange={(e) => setEjemplos(e.target.value)}
+            rows={4}
+            placeholder={"¿Cuántos días de vacaciones tengo?\n¿Cada cuánto se revisa la caldera?"}
             className={campoDialogo}
             style={estiloCampoDialogo}
           />
