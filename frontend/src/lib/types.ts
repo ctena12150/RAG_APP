@@ -90,6 +90,16 @@ export interface OpcionAclaracion {
   valor: string;
 }
 
+export interface RecursoMedia {
+  url: string;
+  tipo: "video" | "enlace";
+  proveedor?: string | null;
+  contexto?: string | null;
+  documento?: string | null;
+  pagina?: number | null;
+  seccion?: string | null;
+}
+
 export interface MensajeChat {
   id: string;
   rol: "user" | "assistant";
@@ -99,6 +109,7 @@ export interface MensajeChat {
   verificacion?: Verificacion | null;
   revisionContenido?: string | null;
   opcionesAclaracion?: OpcionAclaracion[] | null;
+  recursos?: RecursoMedia[] | null;
   pendiente?: boolean;
   cancelada?: boolean;
   metricas?: MetricasGeneracion | null;

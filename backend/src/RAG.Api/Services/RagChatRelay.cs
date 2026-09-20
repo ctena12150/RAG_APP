@@ -28,6 +28,7 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
         JsonNode? traza = null;
         JsonNode? metricas = null;
         JsonNode? clarify = null;
+        JsonNode? media = null;
 
         try
         {
@@ -49,7 +50,7 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
                     break;
 
                 case "done":
-                    (contenidoFinal, fuentes, traza, metricas, clarify) = ParseDone(sse.Data);
+                    (contenidoFinal, fuentes, traza, metricas, clarify, media) = ParseDone(sse.Data);
                     if (!options.IncluirTraza) traza = null;
                     if (options.ConversacionId.HasValue && contenidoFinal is not null)
                         await messages.AddAsync(new Message
@@ -62,6 +63,7 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
                             TrazaJson = traza?.ToJsonString(),
                             MetricasJson = metricas?.ToJsonString(),
                             ClarifyJson = clarify?.ToJsonString(),
+                            MediaJson = media?.ToJsonString(),
                             CreadoUtc = DateTime.UtcNow
                         }, requestAborted);
                     await SseWriter.WriteEventAsync(response, "done", new
@@ -71,7 +73,8 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
                         sources = fuentes,
                         trace = traza,
                         metrics = metricas,
-                        clarify
+                        clarify,
+                        media
                     }, requestAborted);
                     break;
 
@@ -130,7 +133,7 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
             await messages.ApplyVerificationAsync(messageId, dataJson, revision, ct);
     }
 
-    private static (string? Contenido, List<SourceCard> Fuentes, JsonNode? Traza, JsonNode? Metricas, JsonNode? Clarify) ParseDone(string dataJson)
+    private static (string? Contenido, List<SourceCard> Fuentes, JsonNode? Traza, JsonNode? Metricas, JsonNode? Clarify, JsonNode? Media) ParseDone(string dataJson)
     {
         var node = SseParser.Parse(dataJson);
         var content = node?["content"]?.ToString();
@@ -154,7 +157,7 @@ public sealed class RagChatRelay(IRagService rag, IMessageStore messages, IConve
                     item["usada"]?.GetValue<bool>() ?? false));
             }
         }
-        return (content, fuentes, node?["trace"], node?["metrics"], node?["clarify"]);
+        return (content, fuentes, node?["trace"], node?["metrics"], node?["clarify"], node?["media"]);
     }
 
     private static string? SerializeSources(List<SourceCard>? fuentes) =>

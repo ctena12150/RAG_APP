@@ -1,4 +1,4 @@
-import type { Conversacion, Documento, Dominio, DominioInfo, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, OpcionAclaracion, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion } from "./types";
+import type { Conversacion, Documento, Dominio, DominioInfo, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, OpcionAclaracion, RecursoMedia, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -29,6 +29,7 @@ type MensajeApi = MensajeChat & {
   verificacionJson?: string | Verificacion | null;
   metricasJson?: string | MetricasGeneracion | null;
   clarifyJson?: string | { opciones?: OpcionAclaracion[] } | null;
+  mediaJson?: string | RecursoMedia[] | null;
 };
 
 function parsearJson<T>(valor: unknown): T | null {
@@ -54,8 +55,36 @@ export function normalizarMensaje(mensaje: MensajeApi): MensajeChat {
     metricas: mensaje.metricas ?? parsearJson<MetricasGeneracion>(mensaje.metricasJson),
     revisionContenido: mensaje.revisionContenido,
     opcionesAclaracion: clarify,
+    recursos: mensaje.recursos ?? extraerRecursos(mensaje.mediaJson),
     pendiente: mensaje.pendiente,
   };
+}
+
+export function esUrlSegura(url: string): boolean {
+  try {
+    const esquema = new URL(url).protocol.toLowerCase();
+    return esquema === "http:" || esquema === "https:";
+  } catch {
+    return url.startsWith("/");
+  }
+}
+
+function extraerRecursos(valor: MensajeApi["mediaJson"]): RecursoMedia[] | null {
+  const lista = parsearJson<RecursoMedia[]>(valor);
+  if (!Array.isArray(lista)) return null;
+  const limpios = lista
+    .filter((r) => r && typeof r.url === "string" && esUrlSegura(r.url))
+    .map((r) => ({
+      url: r.url,
+      tipo: r.tipo === "video" ? ("video" as const) : ("enlace" as const),
+      proveedor: typeof r.proveedor === "string" ? r.proveedor.slice(0, 40) : null,
+      contexto: typeof r.contexto === "string" && r.contexto.trim() ? r.contexto.trim().slice(0, 200) : null,
+      documento: typeof r.documento === "string" && r.documento.trim() ? r.documento.trim().slice(0, 120) : null,
+      pagina: typeof r.pagina === "number" ? r.pagina : null,
+      seccion: typeof r.seccion === "string" && r.seccion.trim() ? r.seccion.trim().slice(0, 120) : null,
+    }))
+    .filter((r) => r.url.length <= 2000);
+  return limpios.length > 0 ? limpios : null;
 }
 
 function extraerOpciones(valor: MensajeApi["clarifyJson"]): OpcionAclaracion[] | null {
@@ -286,7 +315,7 @@ export interface SseHandlers {
   onAgent?(progreso: ProgresoAgente): void;
   onProgress?(progreso: { etapa: string; texto: string }): void;
   onToken?(texto: string): void;
-  onDone?(datos: { messageId: string; content: string; sources: MensajeChat["fuentes"]; trace: unknown; metrics?: MetricasGeneracion; clarify?: { opciones?: OpcionAclaracion[] } | null }): void;
+  onDone?(datos: { messageId: string; content: string; sources: MensajeChat["fuentes"]; trace: unknown; metrics?: MetricasGeneracion; clarify?: { opciones?: OpcionAclaracion[] } | null; media?: RecursoMedia[] | null }): void;
   onVerified?(datos: { verdict: string; critique?: string; revision?: string }): void;
   onRevisionAvailable?(datos: { revision: string; critique?: string }): void;
   onError?(error: { code: string; message: string }): void;

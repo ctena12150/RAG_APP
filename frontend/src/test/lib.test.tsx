@@ -56,6 +56,21 @@ describe("normalizarMensaje", () => {
     const mensaje = normalizarMensaje({ id: "m3", rol: "assistant", contenido: "ok" });
     expect(mensaje.opcionesAclaracion ?? null).toBeNull();
   });
+
+  it("parsea mediaJson y descarta esquemas peligrosos", () => {
+    const mensaje = normalizarMensaje({
+      id: "m4",
+      rol: "assistant",
+      contenido: "Mira el vídeo (Fuente 1).",
+      mediaJson: JSON.stringify([
+        { url: "https://cuenta.blob.core.windows.net/videos/a1.mp4?sv=1&sig=2", tipo: "video", contexto: "Ver vídeo de bienvenida", documento: "Guía", pagina: 4 },
+        { url: "javascript:alert(1)", tipo: "enlace" },
+      ]),
+    });
+    expect(mensaje.recursos).toHaveLength(1);
+    expect(mensaje.recursos?.[0].contexto).toBe("Ver vídeo de bienvenida");
+    expect(mensaje.recursos?.[0].url).toContain("sig=2");
+  });
 });
 
 describe("exportarConversacionMarkdown", () => {

@@ -63,8 +63,8 @@ public sealed class QueryAndConversationsTests(ApiTestFactory factory) : IClassF
         Assert.Contains("\"usada\":true", body);
         Assert.Contains("event: verified", body);
 
-        Assert.Single(factory.Rag.ChatRequests);
-        Assert.Equal("rrhh", Assert.Single(factory.Rag.ChatRequests[0].Dominios!));
+        var enviado = factory.Rag.ChatRequests.Single(r => r.Question.Contains("vacaciones"));
+        Assert.Equal("rrhh", Assert.Single(enviado.Dominios!));
     }
 
     [Fact]
@@ -195,6 +195,35 @@ public sealed class QueryAndConversationsTests(ApiTestFactory factory) : IClassF
             new { pregunta = "¿Cuántos días?", overridesRetrieval = new { dedupe = false } });
         stateless.EnsureSuccessStatusCode();
         Assert.False(factory.Rag.ChatRequests[^1].OverridesRetrieval!["dedupe"]);
+    }
+
+    [Fact]
+    public async Task Done_con_media_se_reenvia_y_persiste()
+    {
+        await SubirYEsperarAsync("onboarding-video.txt", "onboarding", "Ver vídeo de bienvenida en la intranet.");
+        var client = factory.CreateClient();
+        var createResponse = await client.PostAsJsonAsync("/api/conversations", new { });
+        var conversationId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(Json))
+            .GetProperty("id").GetString()!;
+
+        factory.Rag.ScriptedChatResponses.Enqueue(
+        [
+            new SseEvent("done", """
+                {"content":"Mira el vídeo (Fuente 1).","sources":[],"trace":{"etapas":[]},
+                 "media":[{"url":"https://cuenta.blob.core.windows.net/videos/a1b2.mp4","tipo":"video","proveedor":"azure","contexto":"Ver vídeo de bienvenida","documento":"Guía","pagina":4,"seccion":"Primer día"}]}
+                """)
+        ]);
+
+        var ask = await client.PostAsJsonAsync($"/api/conversations/{conversationId}/messages",
+            new { pregunta = "¿Dónde está el vídeo?" });
+        ask.EnsureSuccessStatusCode();
+        var sse = await ask.Content.ReadAsStringAsync();
+        Assert.Contains("event: done", sse);
+        Assert.Contains("a1b2.mp4", sse);
+
+        var messages = await client.GetFromJsonAsync<List<JsonElement>>($"/api/conversations/{conversationId}/messages", Json);
+        var assistant = messages!.Single(m => m.GetProperty("rol").GetString() == "assistant");
+        Assert.Contains("a1b2.mp4", assistant.GetProperty("mediaJson").GetString());
     }
 
     [Fact]

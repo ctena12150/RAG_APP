@@ -17,6 +17,7 @@ from app.generation.generate import (
     generar_streaming,
     limpiar_citas_invalidas,
 )
+from app.generation.media import extraer_media
 from app.models import Traza
 from app.pipeline.comun import aclaracion_si_procede, datos_done
 from app.pipeline.verificacion import (
@@ -82,10 +83,12 @@ async def pipeline_fijo(
     usadas = extraer_fuentes_usadas(contenido, len(fuentes))
     contenido_limpio = limpiar_citas_invalidas(contenido, len(fuentes))
     tarjetas = construir_tarjetas(fuentes, usadas)
+    citadas = [h for i, h in enumerate(fuentes) if i in usadas] or fuentes
+    media = extraer_media(citadas, settings.media_max) if settings.enable_media else []
 
     yield Sse.evento(
         "done",
-        datos_done(settings, llm, contenido, contenido_limpio, tarjetas, traza, inicio, inicio_total),
+        datos_done(settings, llm, contenido, contenido_limpio, tarjetas, traza, inicio, inicio_total, media=media),
     )
 
     # --- verificación en segundo plano (nunca bloqueante para el usuario final) ---

@@ -27,6 +27,7 @@ def datos_done(
     inicio_generacion: float,
     inicio_total: float,
     clarify: dict | None = None,
+    media: list[dict] | None = None,
 ) -> dict:
     """Payload del evento done con métricas estimadas (idéntico en ambos pipelines)."""
     modelo_solicitado = settings.chain("generation")[0] if settings.chain("generation") else (None, None)
@@ -49,6 +50,8 @@ def datos_done(
     }
     if clarify is not None:
         payload["clarify"] = clarify
+    if media:
+        payload["media"] = media
     return payload
 
 

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { api, describirAgente, streamChat } from "../lib/api";
+import { api, describirAgente, esUrlSegura, streamChat } from "../lib/api";
 import type { PerfilChat } from "../lib/api";
 import type { Conversacion, Dominio, DominioInfo, Documento, Folder, Fuente, MensajeChat, MetricasGeneracion, Rol, TrazaPipeline, Usuario, UsuarioAdmin, UsuarioPermitido, Verificacion } from "../lib/types";
 
@@ -473,7 +473,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             onProgress(progreso) {
               setChat((c) => ({ ...c, actividad: [...c.actividad, progreso.texto] }));
             },
-            onDone({ content, sources, trace, metrics, clarify }) {
+            onDone({ content, sources, trace, metrics, clarify, media }) {
               respuestaCompletada = true;
               setChat((c) => ({ ...c, actividad: [], metricas: metrics ?? null }));
               const opciones = Array.isArray(clarify?.opciones)
@@ -482,6 +482,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     .map((o) => ({ texto: o.texto.trim().slice(0, 80), valor: o.valor.trim().slice(0, 200) }))
                     .filter((o) => o.texto && o.valor)
                 : null;
+              const recursos = Array.isArray(media)
+                ? media
+                    .filter((r) => r && typeof r.url === "string" && esUrlSegura(r.url))
+                    .map((r) => ({
+                      url: r.url,
+                      tipo: r.tipo === "video" ? ("video" as const) : ("enlace" as const),
+                      proveedor: typeof r.proveedor === "string" ? r.proveedor.slice(0, 40) : null,
+                      contexto: typeof r.contexto === "string" && r.contexto.trim() ? r.contexto.trim().slice(0, 200) : null,
+                      documento: typeof r.documento === "string" && r.documento.trim() ? r.documento.trim().slice(0, 120) : null,
+                      pagina: typeof r.pagina === "number" ? r.pagina : null,
+                      seccion: typeof r.seccion === "string" && r.seccion.trim() ? r.seccion.trim().slice(0, 120) : null,
+                    }))
+                    .filter((r) => r.url.length <= 2000)
+                : null;
               actualizarBorrador((m) => ({
                 ...m,
                 contenido: content || m.contenido,
@@ -489,6 +503,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 traza: trace as TrazaPipeline,
                 metricas: metrics ?? null,
                 opcionesAclaracion: opciones && opciones.length > 0 ? opciones : null,
+                recursos: recursos && recursos.length > 0 ? recursos : null,
                 pendiente: false,
               }));
             },

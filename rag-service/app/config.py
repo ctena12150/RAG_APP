@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     enable_aclaracion: bool = True
     aclaracion_max_opciones: int = 4
 
+    # --- recursos multimedia de las fuentes (enlaces/videos de los chunks citados) ---
+    enable_media: bool = True
+    media_max: int = 6
+
     # --- seguridad ---
     # vacío = sin exigir clave interna (dev local). En despliegues con postgres la
     # clave es obligatoria: main falla al arrancar si no se define (defensa contra

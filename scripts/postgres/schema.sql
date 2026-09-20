@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS app.mensajes (
     traza_json         jsonb,
     verificacion_json  jsonb,
     metricas_json      jsonb,
+    clarify_json       jsonb,
+    media_json         jsonb,
     revision_contenido text,
     creado_utc         timestamptz NOT NULL DEFAULT now()
 );
@@ -101,6 +103,7 @@ CREATE INDEX IF NOT EXISTS ix_mensajes_conversacion ON app.mensajes(conversacion
 
 ALTER TABLE app.mensajes ADD COLUMN IF NOT EXISTS metricas_json jsonb;
 ALTER TABLE app.mensajes ADD COLUMN IF NOT EXISTS clarify_json jsonb;
+ALTER TABLE app.mensajes ADD COLUMN IF NOT EXISTS media_json jsonb;
 
 -- Lista blanca de acceso al chat (login Google/Microsoft): una entrada es un email
 -- exacto O un dominio (parte tras la @). Nunca ambos.

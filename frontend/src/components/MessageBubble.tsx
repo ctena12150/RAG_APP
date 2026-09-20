@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, Copy, Square, Volume2 } from "lucide-react";
@@ -11,7 +12,7 @@ import {
   soportaSintesis,
   textoPlanoMarkdown,
 } from "../lib/voz";
-import type { Fuente, MensajeChat, TrazaPipeline } from "../lib/types";
+import type { Fuente, MensajeChat, RecursoMedia, TrazaPipeline } from "../lib/types";
 
 const MermaidDiagrama = lazy(() => import("./MermaidDiagrama"));
 
@@ -99,7 +100,7 @@ function RespuestaAsistente({ mensaje }: { mensaje: MensajeChat }) {
 
   return (
     <div>
-      <div className="prose-rag"><ReactMarkdown remarkPlugins={[remarkGfm]}>
+      <div className="prose-rag"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: EnlaceSeguro }}>
         {mensaje.contenido}</ReactMarkdown></div>
 
       {mensaje.opcionesAclaracion && mensaje.opcionesAclaracion.length > 0 && (
@@ -120,7 +121,88 @@ function RespuestaAsistente({ mensaje }: { mensaje: MensajeChat }) {
 
       {fuentes.length > 0 && <FuentesDeRespuesta fuentes={fuentes} />}
 
+      {mensaje.recursos && mensaje.recursos.length > 0 && (
+        <RecursosMedia recursos={mensaje.recursos} />
+      )}
+
       <BloquesMermaid contenido={mensaje.contenido} />
+    </div>
+  );
+}
+
+function EnlaceSeguro({ href, children }: { href?: string; children?: ReactNode }) {
+  if (!href) return <span>{children}</span>;
+  let segura = false;
+  try {
+    const esquema = new URL(href, window.location.origin).protocol.toLowerCase();
+    segura = esquema === "http:" || esquema === "https:";
+  } catch {
+    segura = href.startsWith("/");
+  }
+  if (!segura) return <span>{children}</span>;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+}
+
+function RecursosMedia({ recursos }: { recursos: RecursoMedia[] }) {
+  return (
+    <div className="mt-2 border-t pt-2" style={{ borderColor: "var(--line)" }}>
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide theme-ink-soft">Recursos</p>
+      <div className="flex flex-col gap-1.5">
+        {recursos.map((r) => (
+          r.tipo === "video"
+            ? <TarjetaVideo key={r.url} recurso={r} />
+            : <a
+                key={r.url}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs underline"
+                style={{ color: "var(--accent-a)" }}
+              >
+                {r.contexto || r.url}
+              </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TarjetaVideo({ recurso }: { recurso: RecursoMedia }) {
+  const [reproducir, setReproducir] = useState(false);
+  const procedencia = [recurso.documento, recurso.pagina ? `pág. ${recurso.pagina}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <div className="rounded-lg p-2.5" style={{ border: "1px solid var(--line)" }}>
+      <p className="text-xs font-medium">{recurso.contexto || "Vídeo"}</p>
+      {procedencia && <p className="mt-0.5 text-[11px] theme-ink-soft">{procedencia}</p>}
+      {reproducir ? (
+        <video controls preload="none" playsInline src={recurso.url} className="mt-2 w-full rounded-md" />
+      ) : (
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setReproducir(true)}
+            aria-label={`Reproducir ${recurso.contexto || "vídeo"}`}
+            className="rounded-full px-3 py-1 text-[11px] font-semibold cursor-pointer"
+            style={{ border: "1px solid var(--accent-a)", color: "var(--accent-a)" }}
+          >
+            ▶ Ver vídeo
+          </button>
+          <a
+            href={recurso.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] underline theme-ink-soft"
+          >
+            Abrir en pestaña nueva
+          </a>
+        </div>
+      )}
     </div>
   );
 }

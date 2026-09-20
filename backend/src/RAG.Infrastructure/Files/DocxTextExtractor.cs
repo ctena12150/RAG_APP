@@ -13,11 +13,16 @@ public sealed class DocxTextExtractor : ITextExtractor
     public Task<ExtractedText> ExtractAsync(Stream content, CancellationToken ct = default)
     {
         using var document = WordprocessingDocument.Open(content, false);
-        var body = document.MainDocumentPart?.Document?.Body
+        var main = document.MainDocumentPart
+            ?? throw new ExtraccionInvalidaException("El documento Word no tiene contenido legible.");
+        var body = main.Document?.Body
             ?? throw new ExtraccionInvalidaException("El documento Word no tiene contenido legible.");
 
+        var hipervinculos = main.HyperlinkRelationships
+            .Where(r => Uri.TryCreate(r.Uri?.OriginalString ?? r.Uri?.ToString(), UriKind.Absolute, out _))
+            .ToDictionary(r => r.Id, r => r.Uri.OriginalString);
         var parrafos = body.Descendants<Paragraph>()
-            .Select(p => p.InnerText)
+            .Select(p => TextoParrafo(p, hipervinculos))
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .ToList();
 
@@ -26,5 +31,18 @@ public sealed class DocxTextExtractor : ITextExtractor
 
         var segmentos = new List<ExtractedSegment> { new(null, TextSanitizer.Sanitize(string.Join("\n", parrafos))) };
         return Task.FromResult<ExtractedText>(new ExtractedText(segmentos, null));
+    }
+
+    private static string TextoParrafo(Paragraph parrafo, Dictionary<string, string> hipervinculos)
+    {
+        var texto = parrafo.InnerText.Trim();
+        foreach (var enlace in parrafo.Descendants<Hyperlink>())
+        {
+            if (enlace.Id?.Value is null || !hipervinculos.TryGetValue(enlace.Id.Value, out var url))
+                continue;
+            if (!texto.Contains(url, StringComparison.OrdinalIgnoreCase))
+                texto = string.IsNullOrWhiteSpace(texto) ? url : $"{texto} ({url})";
+        }
+        return texto;
     }
 }

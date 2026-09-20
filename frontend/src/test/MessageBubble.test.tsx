@@ -116,6 +116,21 @@ describe("MessageBubble", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hardware" }));
   });
 
+  it("muestra recursos con contexto y no monta el vídeo hasta pulsar", () => {
+    const mensaje: MensajeChat = {
+      id: "m11", rol: "assistant", contenido: "Mira el vídeo (Fuente 1).", pendiente: false,
+      recursos: [
+        { url: "https://cuenta.blob.core.windows.net/videos/a1.mp4", tipo: "video", contexto: "Ver vídeo de bienvenida", documento: "Guía", pagina: 4 },
+      ],
+    };
+    render(<MessageBubble mensaje={mensaje} />);
+    expect(screen.getByText("Ver vídeo de bienvenida")).toBeInTheDocument();
+    expect(screen.getByText(/Guía · pág\. 4/)).toBeInTheDocument();
+    expect(document.querySelector("video")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Reproducir/ }));
+    expect(document.querySelector("video")).toHaveAttribute("src", "https://cuenta.blob.core.windows.net/videos/a1.mp4");
+  });
+
   describe("AccionesMensaje", () => {
     it("muestra botones Escuchar y Copiar en respuesta del asistente", () => {
       const mensaje: MensajeChat = {

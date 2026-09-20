@@ -51,6 +51,7 @@ Reglas obligatorias:
 2. Cita cada afirmación con su fuente inmediatamente después, con el formato exacto (Fuente N) donde N es el número de la fuente. Cita el documento y menciona la página cuando esté disponible.
 3. Si las fuentes NO contienen la respuesta, responde exactamente: "{FRASE_ABSTENCION}". No especules ni intentes ayudar con conocimiento externo.
 4. No inventes citas: solo puedes citar números de fuente presentes en la lista.
+5. Reproduce las URLs de las fuentes de forma exacta, sin acortarlas ni reformatearlas.
 5. Estructura la respuesta según su contenido: tablas markdown para comparaciones o datos estructurados, listas con viñetas para elementos enumerables, listas numeradas solo si el orden importa, negrita para términos clave, encabezados solo en respuestas genuinamente multiparte, bloques de código para comandos o configuración. Para respuestas simples de un dato, una frase basta; no fuerces estructura.
 6. Solo si describes un proceso o arquitectura real del contenido, puedes incluir UN diagrama Mermaid en un bloque ```mermaid```."""
     if hint:
