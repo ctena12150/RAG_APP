@@ -30,5 +30,7 @@ public sealed class Message
     public string? ClarifyJson { get; set; }
     public string? MediaJson { get; set; }
     public string? RevisionContenido { get; set; }
+    public string? Voto { get; set; }
+    public DateTime? VotadoUtc { get; set; }
     public DateTime CreadoUtc { get; set; }
 }

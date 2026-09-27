@@ -12,4 +12,6 @@ public interface IMessageStore
     Task ApplyVerificationAsync(Guid id, string verificacionJson, string? revisionContenido, CancellationToken ct = default);
     /// <summary>Aplica la revisión y devuelve el contenido actualizado (una sola sentencia).</summary>
     Task<string> ApplyRevisionAsync(Guid id, string revisionContenido, CancellationToken ct = default);
+    /// <summary>Registra el voto del usuario sobre una respuesta (bien|mal).</summary>
+    Task SetVotoAsync(Guid id, string voto, CancellationToken ct = default);
 }

@@ -140,6 +140,18 @@ public sealed class InMemoryMessageStore : IMessageStore
         }
     }
 
+    public Task SetVotoAsync(Guid id, string voto, CancellationToken ct = default)
+    {
+        lock (_lock)
+        {
+            var message = _messages.FirstOrDefault(m => m.Id == id)
+                ?? throw new KeyNotFoundException($"Mensaje {id} no existe.");
+            message.Voto = voto;
+            message.VotadoUtc = DateTime.UtcNow;
+        }
+        return Task.CompletedTask;
+    }
+
     internal void Clear() { lock (_lock) _messages.Clear(); }
 
     private static Message Clone(Message m) => new()
@@ -147,6 +159,6 @@ public sealed class InMemoryMessageStore : IMessageStore
         Id = m.Id, ConversacionId = m.ConversacionId, Rol = m.Rol, Contenido = m.Contenido,
         FuentesJson = m.FuentesJson, TrazaJson = m.TrazaJson, VerificacionJson = m.VerificacionJson,
         MetricasJson = m.MetricasJson, ClarifyJson = m.ClarifyJson, MediaJson = m.MediaJson,
-        RevisionContenido = m.RevisionContenido, CreadoUtc = m.CreadoUtc
+        RevisionContenido = m.RevisionContenido, Voto = m.Voto, VotadoUtc = m.VotadoUtc, CreadoUtc = m.CreadoUtc
     };
 }

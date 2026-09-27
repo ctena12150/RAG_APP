@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { AppProvider, useApp } from "./state/AppContext";
 import Landing from "./components/Landing";
 import Sidebar from "./components/Sidebar";
@@ -8,10 +8,13 @@ import CommandPalette from "./components/CommandPalette";
 import AdminUsuarios from "./components/AdminUsuarios";
 import { ETIQUETA_ROL, type Rol } from "./lib/types";
 
+const PanelEstadisticas = lazy(() => import("./components/PanelEstadisticas"));
+
 function Shell() {
   const { vista, tema, alternarTema, usuario, cerrarSesion, esSuperUsuario } = useApp();
   const [paletteAbierta, setPaletteAbierta] = useState(false);
   const [adminAbierta, setAdminAbierta] = useState(false);
+  const [estadisticasAbierta, setEstadisticasAbierta] = useState(false);
   const [drawerMovil, setDrawerMovil] = useState(false);
 
   useEffect(() => {
@@ -79,13 +82,22 @@ function Shell() {
                   </span>
                 )}
                 {esSuperUsuario && (
-                  <button
-                    onClick={() => setAdminAbierta(true)}
-                    className="rounded-md px-2 py-1 text-xs cursor-pointer"
-                    style={{ border: "1px solid var(--line)", color: "var(--accent-a)" }}
-                  >
-                    Usuarios
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setEstadisticasAbierta(true)}
+                      className="rounded-md px-2 py-1 text-xs cursor-pointer"
+                      style={{ border: "1px solid var(--line)", color: "var(--accent-a)" }}
+                    >
+                      Estadísticas
+                    </button>
+                    <button
+                      onClick={() => setAdminAbierta(true)}
+                      className="rounded-md px-2 py-1 text-xs cursor-pointer"
+                      style={{ border: "1px solid var(--line)", color: "var(--accent-a)" }}
+                    >
+                      Usuarios
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={cerrarSesion}
@@ -118,6 +130,11 @@ function Shell() {
 
       {paletteAbierta && <CommandPalette cerrar={() => setPaletteAbierta(false)} />}
       {adminAbierta && <AdminUsuarios onClose={() => setAdminAbierta(false)} />}
+      {estadisticasAbierta && (
+        <Suspense fallback={null}>
+          <PanelEstadisticas onClose={() => setEstadisticasAbierta(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -1,69 +1,69 @@
 @import "tailwindcss";
 
 /* ============ SISTEMAS DE DISEÑO ============
-   Ledger (landing): estética de cuaderno de evidencias — papel salvia frío,
-   doble acento verdigris + siena oxidado, serif Newsreader.
-   Signal (app): panel de instrumentos de precisión — azul-negro profundo,
-   acento cian fósforo + ámbar cálido, motivo de forma de onda. */
+   loveAI (landing + app): crema cálida en claro, granate casi negro en
+   oscuro, acento carmesí + dorado envejecido, serif Instrument Serif. */
 
 :root {
-  --font-display: "Newsreader", Georgia, serif;
+  --font-display: "Instrument Serif", Georgia, serif;
   --font-body: "Public Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 [data-view="landing"] {
-  --bg: #eef0e9;
-  --bg-elev: #f7f8f3;
-  --ink: #23281f;
-  --ink-soft: #5a6154;
-  --ink-muted: #5a6154;
-  --line: #d5dacb;
-  --accent-a: #2e7d6e;
-  --accent-b: #a34a2a;
-  --accent: #2e7d6e;
-  --accent-2: #159a7d;
-  --highlight: #a34a2a;
-  --highlight-2: #d65a2e;
-  --surface: #f7f8f3;
-  --surface-raised: #ffffff;
-  --border-color: #d5dacb;
-  --border-subtle: #dee3dc;
+  --bg: #f7f1e6;
+  --bg-elev: #fffaf1;
+  --ink: #3a2a22;
+  --ink-soft: #7c675b;
+  --ink-muted: #7c675b;
+  --line: #e7dbc6;
+  --accent-a: #cf2038;
+  --accent-b: #b5823e;
+  --accent: #cf2038;
+  --accent-2: #e2506a;
+  --accent-ink: #fff6f4;
+  --highlight: #b5823e;
+  --highlight-2: #d1a05f;
+  --surface: #fffaf1;
+  --surface-raised: #fffdf8;
+  --border-color: #e7dbc6;
+  --border-subtle: #efe6d5;
 }
 
 [data-view="landing"][data-theme="dark"] {
-  --bg: #171b16;
-  --bg-elev: #1f241d;
-  --ink: #e6e8df;
-  --ink-soft: #9aa392;
-  --ink-muted: #9aa392;
-  --line: #333a30;
-  --accent-a: #58b8a5;
-  --accent-b: #c96a45;
-  --accent: #58b8a5;
-  --accent-2: #7dd3c4;
-  --highlight: #c96a45;
-  --highlight-2: #e09a72;
-  --surface: #1f241d;
-  --surface-raised: #2a3228;
-  --border-color: #333a30;
-  --border-subtle: #3a4438;
+  --bg: #190a0e;
+  --bg-elev: #230f14;
+  --ink: #f3ece2;
+  --ink-soft: #b39a9c;
+  --ink-muted: #b39a9c;
+  --line: #3a1f26;
+  --accent-a: #e5384f;
+  --accent-b: #d9a566;
+  --accent: #e5384f;
+  --accent-2: #ff6b81;
+  --accent-ink: #fff2f2;
+  --highlight: #ff8fa3;
+  --highlight-2: #ffb0be;
+  --surface: #230f14;
+  --surface-raised: #2c141a;
+  --border-color: #3a1f26;
+  --border-subtle: #432430;
 }
 
 [data-view="app"] {
-  --bg: #070b14;
-  --bg-elev: #0c1322;
-  --surface: #0c1322;
-  --surface-raised: #131b2e;
-  --ink: #dbe7f4;
-  --ink-soft: #71829b;
-  --line: #17233a;
-  --border-subtle: #1a2740;
-  --accent-a: #38e1ff; /* phosphor cyan */
-  --accent-ink: #04121a;
-  --accent-b: #ffb454; /* warm amber */
-  --highlight-ink: #1a0e02;
-  --overlay: rgba(2, 6, 14, 0.6);
+  --bg: #190a0e;
+  --bg-elev: #230f14;
+  --surface: #230f14;
+  --surface-raised: #2c141a;
+  --ink: #f3ece2;
+  --ink-soft: #ab8f92;
+  --line: #3a1f26;
+  --border-subtle: #432430;
+  --accent-a: #e5384f;
+  --accent-ink: #fff2f2;
+  --accent-b: #d9a566;
+  --highlight-ink: #2b1216;
+  --overlay: rgba(15, 6, 9, 0.6);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.55), 0 8px 24px rgba(0, 0, 0, 0.35);
   --danger: #e5484d;
@@ -71,24 +71,24 @@
 }
 
 [data-view="app"][data-theme="light"] {
-  --bg: #f3f5f7;
-  --bg-elev: #ffffff;
-  --surface: #ffffff;
-  --surface-raised: #f7f9fa;
-  --ink: #12181f;
-  --ink-soft: #667080;
-  --line: #dde2e7;
-  --border-subtle: #e7ebee;
-  --accent-a: #0ea894;
-  --accent-2: #14c4ac;
-  --accent-ink: #f5fffd;
-  --accent-b: #c97a2e;
-  --highlight-2: #e0954a;
-  --highlight-ink: #fff8ef;
-  --overlay: rgba(10, 14, 18, 0.45);
-  --shadow-lg: 0 16px 40px rgba(18, 24, 31, 0.14), 0 4px 16px rgba(18, 24, 31, 0.08);
-  --shadow-xl: 0 28px 72px rgba(18, 24, 31, 0.18), 0 10px 28px rgba(18, 24, 31, 0.1);
-  --danger: #c92a2a;
+  --bg: #f7f1e6;
+  --bg-elev: #fffaf1;
+  --surface: #fffaf1;
+  --surface-raised: #fffdf8;
+  --ink: #3a2a22;
+  --ink-soft: #7c675b;
+  --line: #e7dbc6;
+  --border-subtle: #efe6d5;
+  --accent-a: #cf2038;
+  --accent-2: #e2506a;
+  --accent-ink: #fff6f4;
+  --accent-b: #b5823e;
+  --highlight-2: #d1a05f;
+  --highlight-ink: #fff6f4;
+  --overlay: rgba(60, 40, 30, 0.45);
+  --shadow-lg: 0 16px 40px rgba(58, 42, 34, 0.14), 0 4px 16px rgba(58, 42, 34, 0.08);
+  --shadow-xl: 0 28px 72px rgba(58, 42, 34, 0.18), 0 10px 28px rgba(58, 42, 34, 0.1);
+  --danger: #c0202e;
   color-scheme: light;
 }
 
@@ -342,6 +342,7 @@ body {
 .prose-rag h2,
 .prose-rag h3 {
   font-family: var(--font-display);
+  font-weight: 400;
   margin: 0.6em 0 0.3em;
 }
 .prose-rag p {

@@ -2,7 +2,7 @@ import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "reac
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, Copy, Square, Volume2 } from "lucide-react";
+import { Check, Copy, Square, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
 import { useApp } from "../state/AppContext";
 import { dividirPorCitas } from "../lib/api";
 import {
@@ -37,6 +37,7 @@ function MessageBubble({ mensaje }: { mensaje: MensajeChat }) {
           <>
             <RespuestaAsistente mensaje={mensaje} />
             {!esUsuario && !mensaje.pendiente && <AccionesMensaje mensaje={mensaje} />}
+            {!esUsuario && !mensaje.pendiente && <VotosMensaje mensaje={mensaje} />}
             {!esUsuario && !mensaje.pendiente && (mensaje.verificacion || mensaje.traza) && (
               <div className="mt-2 flex flex-wrap items-center gap-2 border-t pt-2" style={{ borderColor: "var(--line)" }}>
                 <VerificacionBadge verificacion={mensaje.verificacion} />
@@ -402,6 +403,56 @@ function AccionesMensaje({ mensaje }: { mensaje: MensajeChat }) {
       >
         {copiado ? <Check size={14} /> : <Copy size={14} />}
       </button>
+    </div>
+  );
+}
+
+function VotosMensaje({ mensaje }: { mensaje: MensajeChat }) {
+  const ctx = useApp() as Partial<ReturnType<typeof useApp>>;
+  const votar = ctx.votarMensaje;
+  const [error, setError] = useState<string | null>(null);
+  const [votando, setVotando] = useState(false);
+  if (mensaje.id.startsWith("tmp-")) return null;
+  const voto = mensaje.voto ?? null;
+
+  const votarCon = (v: "bien" | "mal") => {
+    if (!votar || voto || votando) return;
+    setError(null);
+    setVotando(true);
+    void (votar(mensaje.id, v) as Promise<void>)
+      .catch(() => setError("No se pudo guardar el voto."))
+      .finally(() => setVotando(false));
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t pt-1.5 text-[11px]" style={{ borderColor: "var(--line)" }}>
+      <span className="theme-ink-soft">¿Te sirvió?</span>
+      <button
+        type="button"
+        aria-label="Sí me sirvió"
+        title="Sí me sirvió"
+        aria-pressed={voto === "bien"}
+        disabled={voto !== null || votando}
+        onClick={() => votarCon("bien")}
+        className="btn-iconte"
+        style={{ color: voto === "bien" ? "var(--accent-a)" : "var(--ink-soft)" }}
+      >
+        <ThumbsUp size={14} />
+      </button>
+      <button
+        type="button"
+        aria-label="No me sirvió"
+        title="No me sirvió"
+        aria-pressed={voto === "mal"}
+        disabled={voto !== null || votando}
+        onClick={() => votarCon("mal")}
+        className="btn-iconte"
+        style={{ color: voto === "mal" ? "var(--accent-b)" : "var(--ink-soft)" }}
+      >
+        <ThumbsDown size={14} />
+      </button>
+      {voto && <span className="theme-ink-soft">Guardado ✓</span>}
+      {error && <span role="alert" style={{ color: "var(--accent-b)" }}>{error}</span>}
     </div>
   );
 }

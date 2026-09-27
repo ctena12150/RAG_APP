@@ -19,6 +19,8 @@ public sealed class PostgreSqlMessageStore(IDbConnectionFactory factory) : IMess
             clarify_json AS "ClarifyJson",
             media_json AS "MediaJson",
             revision_contenido AS "RevisionContenido",
+            voto AS "Voto",
+            votado_utc AS "VotadoUtc",
             creado_utc AS "CreadoUtc"
         FROM app.mensajes
         """;
@@ -81,6 +83,18 @@ public sealed class PostgreSqlMessageStore(IDbConnectionFactory factory) : IMess
             """;
         await using var conn = await factory.OpenAsync(ct);
         var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { id, verificacionJson, revisionContenido }, cancellationToken: ct));
+        if (rows == 0) throw new KeyNotFoundException($"Mensaje {id} no existe.");
+    }
+
+    public async Task SetVotoAsync(Guid id, string voto, CancellationToken ct = default)
+    {
+        const string sql = """
+            UPDATE app.mensajes
+            SET voto = @voto, votado_utc = NOW() AT TIME ZONE 'UTC'
+            WHERE id = @id
+            """;
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { id, voto }, cancellationToken: ct));
         if (rows == 0) throw new KeyNotFoundException($"Mensaje {id} no existe.");
     }
 

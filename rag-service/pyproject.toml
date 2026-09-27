@@ -1,7 +1,7 @@
 [project]
 name = "rag-service"
 version = "1.0.0"
-description = "Servicio RAG agéntico de Evidentia (FastAPI + LangChain + pgvector)"
+description = "Servicio RAG agéntico de BLECKMANN SPAIN (FastAPI + LangChain + pgvector)"
 requires-python = ">=3.12"
 
 [tool.ruff]

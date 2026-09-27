@@ -62,7 +62,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 10,
+          "SelectedChildIndex": 9,
           "Children": [
             {
               "$type": "Bookmark",
@@ -142,6 +142,19 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Program.cs",
+              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Program.cs",
+              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Program.cs",
+              "RelativeToolTip": "backend\\src\\RAG.Api\\Program.cs",
+              "ViewState": "AgIAAHgAAAAAAAAAAAAQwJsAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-26T12:35:59.636Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 3,
               "Title": "RateLimitMiddleware.cs",
               "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Middleware\\RateLimitMiddleware.cs",
@@ -151,19 +164,6 @@
               "ViewState": "AgIAAE0AAAAAAAAAAAAowAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-08-29T13:42:11.983Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "Program.cs",
-              "DocumentMoniker": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Program.cs",
-              "RelativeDocumentMoniker": "backend\\src\\RAG.Api\\Program.cs",
-              "ToolTip": "C:\\Users\\carlos\\Desktop\\RAG_APP\\backend\\src\\RAG.Api\\Program.cs",
-              "RelativeToolTip": "backend\\src\\RAG.Api\\Program.cs",
-              "ViewState": "AgIAAIUAAAAAAAAAAAAQwJkAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-08-26T12:35:59.636Z",
-              "EditorCaption": ""
             },
             {
               "$type": "Document",

@@ -4,7 +4,7 @@ import Landing from "../components/Landing";
 
 vi.mock("../state/AppContext", () => ({ useApp: vi.fn() }));
 // la landing es pesada: se sustituyen los decorativos por componentes vacíos
-vi.mock("../components/LogoMark", () => ({ LogoMark: () => <span /> }));
+vi.mock("../components/LogoBleckmann", () => ({ LogoBleckmann: () => null }));
 vi.mock("../components/AmbientBackground", () => ({ AmbientBackground: () => null }));
 vi.mock("../components/GrainOverlay", () => ({ GrainOverlay: () => null }));
 vi.mock("../components/hero/SignalBackground", () => ({ default: () => null }));

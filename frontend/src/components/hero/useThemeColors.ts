@@ -9,9 +9,9 @@ function readColors(): {
 } {
   if (typeof window === "undefined") {
     return {
-      accent: new THREE.Color("#2e7d6e"),
-      highlight: new THREE.Color("#a34a2a"),
-      bg: new THREE.Color("#eef0e9"),
+      accent: new THREE.Color("#cf2038"),
+      highlight: new THREE.Color("#b5823e"),
+      bg: new THREE.Color("#f7f1e6"),
       isDark: false,
     };
   }
@@ -20,9 +20,9 @@ function readColors(): {
   const read = (varName: string, fallback: string) =>
     new THREE.Color(styles.getPropertyValue(varName).trim() || fallback);
   return {
-    accent: read("--accent", "#2e7d6e"),
-    highlight: read("--highlight", "#a34a2a"),
-    bg: read("--bg", "#eef0e9"),
+    accent: read("--accent", "#cf2038"),
+    highlight: read("--highlight", "#b5823e"),
+    bg: read("--bg", "#f7f1e6"),
     isDark,
   };
 }

@@ -1,4 +1,4 @@
-import type { Conversacion, Documento, Dominio, DominioInfo, EstadoAuth, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, OpcionAclaracion, RecursoMedia, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion } from "./types";
+import type { Conversacion, Documento, Dominio, DominioInfo, EstadoAuth, EstadisticasResumen, Folder, Fuente, MensajeChat, MetricasGeneracion, ModeloDisponible, OpcionAclaracion, RecursoMedia, Rol, TrazaPipeline, UsuarioAdmin, UsuarioPermitido, Verificacion, Voto } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -30,6 +30,7 @@ type MensajeApi = MensajeChat & {
   metricasJson?: string | MetricasGeneracion | null;
   clarifyJson?: string | { opciones?: OpcionAclaracion[] } | null;
   mediaJson?: string | RecursoMedia[] | null;
+  voto?: Voto | null;
 };
 
 function parsearJson<T>(valor: unknown): T | null {
@@ -57,6 +58,7 @@ export function normalizarMensaje(mensaje: MensajeApi): MensajeChat {
     opcionesAclaracion: clarify,
     recursos: mensaje.recursos ?? extraerRecursos(mensaje.mediaJson),
     pendiente: mensaje.pendiente,
+    voto: (mensaje.voto === "bien" || mensaje.voto === "mal") ? mensaje.voto : null,
   };
 }
 
@@ -195,6 +197,22 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     });
+  },
+
+  votar(conversacionId: string, messageId: string, voto: Voto): Promise<{ messageId: string; voto: Voto }> {
+    return request(`/api/conversations/${conversacionId}/messages/${messageId}/voto`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voto }),
+    });
+  },
+
+  estadisticas(desde?: string, hasta?: string): Promise<EstadisticasResumen> {
+    const params = new URLSearchParams();
+    if (desde) params.set("desde", desde);
+    if (hasta) params.set("hasta", hasta);
+    const qs = params.toString() ? `?${params}` : "";
+    return request<EstadisticasResumen>(`/api/estadisticas${qs}`);
   },
 
   listarModelos(): Promise<ModeloDisponible[]> {

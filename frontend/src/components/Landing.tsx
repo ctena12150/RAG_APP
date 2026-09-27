@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Moon, Sun } from "lucide-react";
 import { useApp } from "../state/AppContext";
-import { LogoMark } from "./LogoMark";
+import { LogoBleckmann } from "./LogoBleckmann";
 import { AmbientBackground } from "./AmbientBackground";
 import { GrainOverlay } from "./GrainOverlay";
 import LoginModal from "./LoginModal";
@@ -37,8 +37,8 @@ export default function Landing() {
 
       <header className="relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
         <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.2em] text-ink-muted">
-          <LogoMark size={18} />
-          Evidentia<span className="accent-a">·</span>RAG
+          <LogoBleckmann height={46} />
+          SPAIN 0.2<span className="accent-a">·</span>RAG
         </span>
         <button
           onClick={alternarTema}
@@ -110,7 +110,7 @@ export default function Landing() {
                 className="group mt-2 flex items-center gap-2 rounded-full px-6 py-3 font-medium cursor-pointer"
                 style={{
                   background: "linear-gradient(135deg, var(--accent-a), var(--accent-b))",
-                  color: "#0c1512",
+                  color: "var(--accent-ink)",
                   boxShadow: "0 1px 0 0 rgba(255,255,255,0.15) inset, 0 8px 24px -8px var(--accent-a)",
                 }}
               >

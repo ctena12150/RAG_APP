@@ -113,6 +113,7 @@ interface AppContextValue {
   preguntar: (texto: string, modelo?: string, razonamiento?: string, perfil?: PerfilChat, dominios?: Dominio[]) => Promise<void>;
   detenerGeneracion: () => void;
   aceptarRevision: (messageId: string) => Promise<void>;
+  votarMensaje: (messageId: string, voto: "bien" | "mal") => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -584,6 +585,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [conversacionActiva],
   );
 
+  const votarMensaje = useCallback(
+    async (messageId: string, voto: "bien" | "mal") => {
+      if (!conversacionActiva) return;
+      const previo = chat.mensajes.find((m) => m.id === messageId)?.voto ?? null;
+      setChat((c) => ({
+        ...c,
+        mensajes: c.mensajes.map((m) => (m.id === messageId ? { ...m, voto } : m)),
+      }));
+      try {
+        await api.votar(conversacionActiva.id, messageId, voto);
+      } catch {
+        setChat((c) => ({
+          ...c,
+          mensajes: c.mensajes.map((m) => (m.id === messageId ? { ...m, voto: previo } : m)),
+        }));
+        throw new Error("No se pudo guardar el voto.");
+      }
+    },
+    [conversacionActiva, chat.mensajes],
+  );
+
   const entrarApp = useCallback(() => setVista("app"), []);
 
   const value = useMemo<AppContextValue>(
@@ -641,6 +663,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       preguntar,
       detenerGeneracion,
       aceptarRevision,
+      votarMensaje,
     }),
     [
       vista, entrarApp, tema, alternarTema, usuario, proveedoresDisponibles, authCargando,
@@ -653,7 +676,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       subirDocumento, borrarDocumento, crearFolder, borrarFolder, subidaActiva, docResaltado,
       errorSubida, conversaciones, conversacionActiva,
       chat, fuentesSeleccionadas, refrescarConversaciones, abrirConversacion, nuevaConversacion,
-       borrarConversacion, preguntar, detenerGeneracion, aceptarRevision,
+       borrarConversacion, preguntar, detenerGeneracion, aceptarRevision, votarMensaje,
     ],
   );
 

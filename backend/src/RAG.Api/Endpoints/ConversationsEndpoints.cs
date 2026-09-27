@@ -25,6 +25,7 @@ public static class ConversationsEndpoints
         group.MapGet("/{id:guid}/messages", ListMessagesAsync);
         group.MapPost("/{id:guid}/messages", AskAsync);
         group.MapPatch("/{id:guid}/messages/{messageId:guid}/revision", AcceptRevisionAsync);
+        group.MapPatch("/{id:guid}/messages/{messageId:guid}/voto", VoteAsync);
 
         return app;
     }
@@ -175,6 +176,27 @@ public static class ConversationsEndpoints
         return TypedResults.Ok<object>(new { messageId, content = contenido });
     }
 
+    private static async Task<Ok<object>> VoteAsync(
+        Guid id, Guid messageId, VoteRequest body, ClaimsPrincipal user,
+        IConversationStore conversations, IMessageStore messages, CancellationToken ct)
+    {
+        var conversation = await conversations.FindByIdAsync(id, ct)
+            ?? throw new KeyNotFoundException($"Conversación {id} no existe.");
+        VerificarAcceso(conversation, DueñoActual(user));
+        var voto = body.Voto?.Trim().ToLowerInvariant();
+        if (voto != "bien" && voto != "mal")
+            throw new ControlledException("voto_invalido", StatusCodes.Status400BadRequest,
+                "El voto debe ser 'bien' o 'mal'.");
+        var message = await messages.FindByIdAsync(messageId, ct)
+            ?? throw new KeyNotFoundException($"Mensaje {messageId} no existe.");
+        if (message.ConversacionId != id)
+            throw new ControlledException("mensaje_ajeno", StatusCodes.Status400BadRequest, "El mensaje no pertenece a la conversación.");
+        if (!string.Equals(message.Rol, "assistant", StringComparison.OrdinalIgnoreCase))
+            throw new ControlledException("mensaje_no_votable", StatusCodes.Status400BadRequest, "Solo se puede votar una respuesta del asistente.");
+        await messages.SetVotoAsync(messageId, voto, ct);
+        return TypedResults.Ok<object>(new { messageId, voto });
+    }
+
     private static bool TieneRevision(string? verificacionJson)
     {
         if (string.IsNullOrWhiteSpace(verificacionJson)) return false;
@@ -257,3 +279,4 @@ public sealed record AskRequest(
     string? Razonamiento = null,
     string? Perfil = null);
 public sealed record AcceptRevisionRequest(string? Contenido);
+public sealed record VoteRequest(string? Voto);

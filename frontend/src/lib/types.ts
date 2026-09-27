@@ -100,6 +100,8 @@ export interface RecursoMedia {
   seccion?: string | null;
 }
 
+export type Voto = "bien" | "mal";
+
 export interface MensajeChat {
   id: string;
   rol: "user" | "assistant";
@@ -113,6 +115,32 @@ export interface MensajeChat {
   pendiente?: boolean;
   cancelada?: boolean;
   metricas?: MetricasGeneracion | null;
+  voto?: Voto | null;
+}
+
+export interface ConteoDominio { dominio: string; consultas: number; }
+export interface ConteoDia { dia: string; consultas: number; }
+export interface DocumentoCitado { documento: string; citas: number; }
+export interface PreguntaTop { pregunta: string; veces: number; }
+export interface MuestraConsulta { pregunta: string; dominio?: string | null; creadoUtc: string; }
+
+export interface EstadisticasResumen {
+  totalConsultas: number;
+  votosBien: number;
+  votosMal: number;
+  sinVoto: number;
+  pctSatisfaccion: number;
+  sinCobertura: number;
+  cubiertas: number;
+  sirvieron: number;
+  pctResueltas: number;
+  tiempoMedioMs?: number | null;
+  porDominio: ConteoDominio[];
+  porDia: ConteoDia[];
+  documentosMasCitados: DocumentoCitado[];
+  topPreguntas: PreguntaTop[];
+  ultimasMalas: MuestraConsulta[];
+  ultimasSinCobertura: MuestraConsulta[];
 }
 
 export interface Conversacion {

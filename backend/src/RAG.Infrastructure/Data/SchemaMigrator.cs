@@ -41,6 +41,8 @@ public sealed class SchemaMigrator(IDbConnectionFactory factory)
         ALTER TABLE app.usuarios ADD COLUMN IF NOT EXISTS dominios text[] NOT NULL DEFAULT '{}';
         ALTER TABLE app.mensajes ADD COLUMN IF NOT EXISTS clarify_json jsonb;
         ALTER TABLE app.mensajes ADD COLUMN IF NOT EXISTS media_json jsonb;
+        ALTER TABLE app.mensajes ADD COLUMN IF NOT EXISTS voto varchar(4);
+        ALTER TABLE app.mensajes ADD COLUMN IF NOT EXISTS votado_utc timestamptz;
         CREATE INDEX IF NOT EXISTS ix_conversaciones_usuario ON app.conversaciones(usuario_id, actualizado_utc DESC);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_documentos_content_hash ON app.documentos(content_hash);
         """;

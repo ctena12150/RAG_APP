@@ -110,7 +110,7 @@ export default function LoginOptions({ motivo, className }: { motivo?: string; c
               style={{
                 background: "linear-gradient(135deg, var(--accent-a), var(--accent-b))",
                 borderColor: "transparent",
-                color: "var(--accent-ink, #0c1512)",
+                color: "var(--accent-ink, #fff6f4)",
               }}
             >
               {enviando ? "Entrando…" : "Entrar"}

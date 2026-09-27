@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useApp } from "../state/AppContext";
+import { LogoBleckmann } from "./LogoBleckmann";
 import type { Documento, Dominio } from "../lib/types";
 
 type Pestana = "conversaciones" | "documentos";
@@ -83,8 +84,9 @@ export default function Sidebar({ onNavegar }: { onNavegar?: () => void }) {
   return (
     <div className="flex h-full flex-col text-sm">
       <div className="px-4 py-4" style={{ borderBottom: "1px solid var(--line)" }}>
-        <span style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem" }}>
-          Evidentia 0.2<span className="accent-a">·</span>RAG
+        <span className="flex items-center gap-2" style={{ fontFamily: "var(--font-display)", fontSize: "1.05rem" }}>
+          <LogoBleckmann height={40} />
+          SPAIN 0.2<span className="accent-a">·</span>RAG
         </span>
       </div>
 
