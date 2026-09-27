@@ -58,11 +58,25 @@ public static class EstadisticasAgregador
             .Take(10)
             .ToList();
 
+        var preguntasPorConversacion = usuarios
+            .GroupBy(m => m.ConversacionId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(m => m.CreadoUtc).ThenBy(m => m.Id).ToList());
+
+        string PreguntaDe(Message asistente)
+        {
+            if (preguntasPorConversacion.TryGetValue(asistente.ConversacionId, out var preguntas))
+            {
+                var anterior = preguntas.LastOrDefault(p => p.CreadoUtc <= asistente.CreadoUtc);
+                if (anterior is not null) return Recortar(anterior.Contenido, 200);
+            }
+            return Recortar(asistente.Contenido, 200);
+        }
+
         List<MuestraConsulta> Muestras(IEnumerable<Message> msgs) => msgs
             .OrderByDescending(m => m.CreadoUtc)
             .Take(100)
             .Select(m => new MuestraConsulta(
-                Recortar(m.Contenido, 200),
+                PreguntaDe(m),
                 DominiosDe(m, conversaciones).FirstOrDefault(),
                 m.CreadoUtc))
             .ToList();

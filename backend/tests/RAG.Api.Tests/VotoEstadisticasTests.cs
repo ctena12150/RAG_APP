@@ -64,6 +64,44 @@ public sealed class VotoEstadisticasTests(
     }
 
     [Fact]
+    public async Task Estadisticas_muestras_contienen_la_pregunta_no_la_respuesta()
+    {
+        var admin = superusuario.CreateClient();
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent("La política establece 23 días de vacaciones.", Encoding.UTF8, "text/plain"), "file", "pareja.txt");
+        form.Add(new StringContent("rrhh"), "dominio");
+        var upload = await admin.PostAsync("/api/documents/upload", form);
+        upload.EnsureSuccessStatusCode();
+        var docId = (await upload.Content.ReadFromJsonAsync<JsonElement>(Json)).GetProperty("id").GetString()!;
+        for (var i = 0; i < 100; i++)
+        {
+            var status = await admin.GetFromJsonAsync<JsonElement>($"/api/documents/{docId}/status", Json);
+            if (status.GetProperty("estado").GetString() == "listo") break;
+            await Task.Delay(50);
+        }
+
+        const string pregunta = "¿Pregunta de emparejamiento única 7391?";
+        var creada = await admin.PostAsJsonAsync("/api/conversations", new { dominios = new[] { "rrhh" } });
+        creada.EnsureSuccessStatusCode();
+        var convId = (await creada.Content.ReadFromJsonAsync<JsonElement>(Json)).GetProperty("id").GetString()!;
+        var ask = await admin.PostAsJsonAsync($"/api/conversations/{convId}/messages", new { pregunta });
+        Assert.Equal(HttpStatusCode.OK, ask.StatusCode);
+
+        var detalle = await admin.GetFromJsonAsync<JsonElement>($"/api/conversations/{convId}", Json);
+        var assistantId = detalle.GetProperty("mensajes").EnumerateArray()
+            .First(m => m.GetProperty("rol").GetString() == "assistant")
+            .GetProperty("id").GetString()!;
+        var voto = await admin.PatchAsJsonAsync($"/api/conversations/{convId}/messages/{assistantId}/voto", new { voto = "mal" });
+        Assert.Equal(HttpStatusCode.OK, voto.StatusCode);
+
+        var stats = await admin.GetFromJsonAsync<JsonElement>("/api/estadisticas", Json);
+        var muestra = stats.GetProperty("ultimasMalas").EnumerateArray()
+            .First(m => m.GetProperty("pregunta").GetString()!.Contains("7391"));
+        Assert.Contains("7391", muestra.GetProperty("pregunta").GetString());
+        Assert.DoesNotContain("La respuesta final", muestra.GetProperty("pregunta").GetString());
+    }
+
+    [Fact]
     public async Task Estadisticas_usuario_normal_recibe_403_y_superusuario_200()
     {
         var comun = usuario.CreateClient();
