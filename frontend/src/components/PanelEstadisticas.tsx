@@ -177,14 +177,14 @@ function Listas({ datos }: { datos: EstadisticasResumen }) {
         </Bloque>
       )}
       {datos.ultimasSinCobertura.length > 0 && (
-        <Bloque titulo="Lo que el manual no explica" sub="Lista para corregir.">
+        <Bloque titulo={`Sin respuesta (${datos.ultimasSinCobertura.length})`} sub="El asistente no encontró nada en los documentos." scroll>
           {datos.ultimasSinCobertura.map((m, i) => (
             <Fila key={i} etiqueta={m.pregunta} cuenta="" detalle={m.dominio ?? undefined} />
           ))}
         </Bloque>
       )}
       {datos.ultimasMalas.length > 0 && (
-        <Bloque titulo="Respuestas que no sirvieron" sub="El manual traía algo, pero no ayudó.">
+        <Bloque titulo={`Pulgar abajo (${datos.ultimasMalas.length})`} sub="El usuario marcó la respuesta como no útil." scroll>
           {datos.ultimasMalas.map((m, i) => (
             <Fila key={i} etiqueta={m.pregunta} cuenta="" detalle={m.dominio ?? undefined} />
           ))}
@@ -194,7 +194,7 @@ function Listas({ datos }: { datos: EstadisticasResumen }) {
   );
 }
 
-function Bloque({ titulo, sub, children }: { titulo: string; sub?: string; children: React.ReactNode }) {
+function Bloque({ titulo, sub, scroll, children }: { titulo: string; sub?: string; scroll?: boolean; children: React.ReactNode }) {
   return (
     <section className="rounded-lg px-3 py-2.5" style={{ background: "var(--bg)", border: "1px solid var(--line)" }}>
       <h3 className="text-xs font-semibold">{titulo}</h3>
@@ -203,7 +203,7 @@ function Bloque({ titulo, sub, children }: { titulo: string; sub?: string; child
           {sub}
         </p>
       )}
-      <div className="divide-y" style={{ borderColor: "var(--line)" }}>
+      <div className={scroll ? "max-h-64 divide-y overflow-y-auto" : "divide-y"} style={{ borderColor: "var(--line)" }}>
         {children}
       </div>
     </section>

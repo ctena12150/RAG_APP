@@ -60,7 +60,7 @@ public static class EstadisticasAgregador
 
         List<MuestraConsulta> Muestras(IEnumerable<Message> msgs) => msgs
             .OrderByDescending(m => m.CreadoUtc)
-            .Take(8)
+            .Take(100)
             .Select(m => new MuestraConsulta(
                 Recortar(m.Contenido, 200),
                 DominiosDe(m, conversaciones).FirstOrDefault(),
